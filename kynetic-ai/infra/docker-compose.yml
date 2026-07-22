@@ -321,6 +321,76 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Provisioning Service (port 8005) ─────────────────────────────────────
+  provisioning_service:
+    build:
+      context: .
+      dockerfile: services/provisioning_service/Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+      HOST_SERVICE_URL: http://host_service:8002
+      # Mock mode — Firecracker requires KVM on Linux; set false in production
+      FIRECRACKER_MOCK: "true"
+      # REQUIRED: Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      SSH_KEY_FERNET_KEY: "REPLACE_WITH_GENERATED_FERNET_KEY_BEFORE_PRODUCTION="
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      WIREGUARD_RELAY_HOST: relay.kynetic.ai
+      WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
+    volumes:
+      - ./libs:/app/libs
+      - ./services/provisioning_service:/app/services/provisioning_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  provisioning_worker:
+    build:
+      context: .
+      dockerfile: services/provisioning_service/Dockerfile
+    command: >
+      celery -A services.provisioning_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=4
+        --beat --schedule=/tmp/celerybeat-provisioning-schedule
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+      HOST_SERVICE_URL: http://host_service:8002
+      FIRECRACKER_MOCK: "true"
+      SSH_KEY_FERNET_KEY: "REPLACE_WITH_GENERATED_FERNET_KEY_BEFORE_PRODUCTION="
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      WIREGUARD_RELAY_HOST: relay.kynetic.ai
+      WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
+    volumes:
+      - ./libs:/app/libs
+      - ./services/provisioning_service:/app/services/provisioning_service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
@@ -328,3 +398,4 @@ volumes:
 networks:
   default:
     name: kynetic_dev_network
+

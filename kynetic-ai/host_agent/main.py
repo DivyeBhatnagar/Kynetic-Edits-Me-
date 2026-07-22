@@ -10,6 +10,14 @@ Implements the guided, non-CLI onboarding wizard:
 5. Benchmark suite execution (progress bar)
 6. Success screen + heartbeat loop start
 
+Also runs a FastAPI HTTP server on port 8443 (mTLS in production)
+that receives provisioning commands from the Kynetic provisioning_service:
+  POST /agent/provision      — create Firecracker VM + Docker container
+  POST /agent/stop           — suspend VM
+  POST /agent/terminate      — destroy container + VM
+  POST /agent/delete_volume  — cryptographic NVMe shred
+  GET  /agent/verify_deletion — return deletion confirmation
+
 Packaged via PyInstaller into a single executable:
   Windows: kynetic-agent.exe
   Linux/macOS: kynetic-agent
@@ -17,11 +25,14 @@ Packaged via PyInstaller into a single executable:
 Usage:
   kynetic-agent                    — Guided onboarding wizard
   kynetic-agent --headless TOKEN   — Non-interactive mode (for servers)
+  kynetic-agent --server           — Run provisioning server only (for existing hosts)
 """
 
 import os
 import sys
 import time
+import threading
+import uuid
 from pathlib import Path
 
 import structlog

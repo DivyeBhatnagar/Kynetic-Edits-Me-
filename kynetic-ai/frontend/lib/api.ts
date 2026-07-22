@@ -162,3 +162,107 @@ export const walletApi = {
       body: JSON.stringify({ amount_usd, currency: "usd" }),
     }),
 };
+
+// ── Instance Types ─────────────────────────────────────────────────────────
+
+export type InstanceStatus =
+  | "pending"
+  | "provisioning"
+  | "running"
+  | "stopping"
+  | "stopped"
+  | "terminated"
+  | "failed";
+
+export interface Instance {
+  id: string;
+  developer_id: string;
+  listing_id: string;
+  host_id: string;
+  status: InstanceStatus;
+  hold_amount: string;
+  hold_released: boolean;
+  firecracker_vm_id: string | null;
+  wireguard_ip: string | null;
+  public_ip: string | null;
+  ssh_port: number;
+  billed_seconds: number;
+  price_per_second_usd: string;
+  created_at: string;
+  started_at: string | null;
+  stopped_at: string | null;
+  terminated_at: string | null;
+}
+
+export interface InstanceListResponse {
+  items: Instance[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ConnectionInfo {
+  instance_id: string;
+  status: InstanceStatus;
+  ssh_host: string;
+  ssh_port: number;
+  ssh_user: string;
+  private_key_pem: string;
+  public_key: string;
+  ssh_command: string;
+  key_expires_at: string | null;
+}
+
+export interface DeletionReceipt {
+  instance_id: string;
+  method: string;
+  agent_confirmation_hash: string;
+  verified_at: string;
+}
+
+// ── Instances API ──────────────────────────────────────────────────────────
+
+export const instancesApi = {
+  launch: (token: string, listing_id: string) =>
+    request<Instance>("/instances", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ listing_id }),
+    }),
+
+  get: (token: string, instanceId: string) =>
+    request<Instance>(`/instances/${instanceId}`, { token }),
+
+  list: (token: string, status?: InstanceStatus, page = 1) => {
+    const qs = new URLSearchParams({ page: String(page) });
+    if (status) qs.set("status_filter", status);
+    return request<InstanceListResponse>(`/instances?${qs}`, { token });
+  },
+
+  stop: (token: string, instanceId: string) =>
+    request<{ message: string }>(`/instances/${instanceId}/stop`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({}),
+    }),
+
+  start: (token: string, instanceId: string) =>
+    request<{ message: string }>(`/instances/${instanceId}/start`, {
+      method: "POST",
+      token,
+    }),
+
+  terminate: (token: string, instanceId: string, force = false) =>
+    request<{ message: string }>(`/instances/${instanceId}/terminate`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ force }),
+    }),
+
+  getConnection: (token: string, instanceId: string) =>
+    request<ConnectionInfo>(`/instances/${instanceId}/connection`, { token }),
+
+  getDeletionReceipt: (token: string, instanceId: string) =>
+    request<DeletionReceipt>(`/instances/${instanceId}/deletion-receipt`, { token }),
+};
+

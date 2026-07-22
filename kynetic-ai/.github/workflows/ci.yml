@@ -464,3 +464,48 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+
+  # ── Provisioning Service Tests ─────────────────────────────────────────────
+  test-provisioning-service:
+    name: Provisioning Service — Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    defaults:
+      run:
+        working-directory: kynetic-ai
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/provisioning_service/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run provisioning tests
+        run: |
+          python -m pytest tests/provisioning_service/ -v
+        env:
+          PYTHONPATH: .
+          ENVIRONMENT: testing
+          FIRECRACKER_MOCK: "true"
+          # Synthetic Fernet key — safe for CI (tests only, never reaches real infra)
+          SSH_KEY_FERNET_KEY: "Dj2F3qP8cN9mRvYwXkLhAb0tEzUsGiJl4OeVQnW5ICM="
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/1
+          CELERY_RESULT_BACKEND: redis://localhost:6379/2
+          WALLET_BILLING_SERVICE_URL: http://localhost:8004
+          MARKETPLACE_SERVICE_URL: http://localhost:8003
+          HOST_SERVICE_URL: http://localhost:8002
+          JWT_SECRET_KEY: ci_test_secret_key
+          WIREGUARD_RELAY_HOST: relay.kynetic.ai
+          WIREGUARD_RELAY_PUBLIC_KEY: CI_PLACEHOLDER_WG_PUBLIC_KEY
+

@@ -345,3 +345,118 @@ async def proxy_stripe_webhook(request: Request):
     return await _proxy_request(
         request, f"{settings.wallet_billing_service_url}/billing/webhooks/stripe"
     )
+
+
+# ---------------------------------------------------------------------------
+# Provisioning routes (Phase 4) — instance lifecycle
+# ---------------------------------------------------------------------------
+@gateway_router.api_route(
+    "/instances",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /instances → provisioning_service (protected)",
+)
+async def proxy_instances_launch(request: Request, _: dict = Depends(require_auth)):
+    return await _proxy_request(
+        request, f"{settings.provisioning_service_url}/v1/instances"
+    )
+
+
+@gateway_router.api_route(
+    "/instances",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /instances → provisioning_service (protected)",
+)
+async def proxy_instances_list(request: Request, _: dict = Depends(require_auth)):
+    return await _proxy_request(
+        request, f"{settings.provisioning_service_url}/v1/instances"
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /instances/{id} → provisioning_service (protected)",
+)
+async def proxy_instance_get(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request, f"{settings.provisioning_service_url}/v1/instances/{instance_id}"
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/stop",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /instances/{id}/stop → provisioning_service (protected)",
+)
+async def proxy_instance_stop(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request, f"{settings.provisioning_service_url}/v1/instances/{instance_id}/stop"
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/start",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /instances/{id}/start → provisioning_service (protected)",
+)
+async def proxy_instance_start(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request, f"{settings.provisioning_service_url}/v1/instances/{instance_id}/start"
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/terminate",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /instances/{id}/terminate → provisioning_service (protected)",
+)
+async def proxy_instance_terminate(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/instances/{instance_id}/terminate",
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/connection",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /instances/{id}/connection → provisioning_service (protected)",
+)
+async def proxy_instance_connection(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/instances/{instance_id}/connection",
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/deletion-receipt",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /instances/{id}/deletion-receipt → provisioning_service (protected)",
+)
+async def proxy_instance_deletion_receipt(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/instances/{instance_id}/deletion-receipt",
+    )
+

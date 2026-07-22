@@ -204,6 +204,11 @@ export default function InstancesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<InstanceStatus | "all">("all");
   const [page, setPage] = useState(1);
+  const [trustTier, setTrustTier] = useState<{
+    tier: string;
+    is_wallet_frozen: boolean;
+    max_instance_vcpus: number | null;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -223,10 +228,18 @@ export default function InstancesPage() {
     }
   }, [token, filter, page]);
 
+  // Load trust tier alongside instances
   useEffect(() => {
-    if (!token) { router.push("/login"); return; }
+    if (!token || !user) { router.push("/login"); return; }
     load();
-  }, [token, load, router]);
+    // Fetch trust tier in background
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/users/${user.id}/trust-tier`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setTrustTier(d))
+      .catch(() => null);
+  }, [token, user, load, router]);
 
   // Auto-refresh every 5s if any instance is in a transient state
   useEffect(() => {
@@ -262,6 +275,39 @@ export default function InstancesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Trust tier banner */}
+        {trustTier && (
+          <Link
+            href="/profile/trust"
+            className={`flex items-center gap-3 rounded-2xl px-4 py-3 mb-6 border text-sm transition-colors hover:border-violet-500/40 ${
+              trustTier.is_wallet_frozen
+                ? "bg-red-950/20 border-red-800/30"
+                : trustTier.tier === "unverified"
+                ? "bg-amber-950/10 border-amber-800/20"
+                : "bg-emerald-950/10 border-emerald-800/20"
+            }`}
+          >
+            <span className="text-2xl">
+              {trustTier.is_wallet_frozen ? "🔴" : trustTier.tier === "unverified" ? "🔒" : trustTier.tier === "tier1" ? "📱" : trustTier.tier === "tier2" ? "🪪" : "⭐"}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-white capitalize">
+                {trustTier.is_wallet_frozen ? "Wallet Frozen" : trustTier.tier === "unverified" ? "Unverified Account" : trustTier.tier === "tier1" ? "Phone Verified" : trustTier.tier === "tier2" ? "ID Verified" : "Enterprise"}
+              </div>
+              <div className="text-xs text-slate-400">
+                {trustTier.is_wallet_frozen
+                  ? "Your wallet is frozen — contact support"
+                  : trustTier.tier === "unverified"
+                  ? `Max ${trustTier.max_instance_vcpus} vCPUs · No GPU · Verify to unlock more`
+                  : "Click to manage your trust tier and limits"}
+              </div>
+            </div>
+            <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        )}
+
         {/* Filter tabs */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
           {STATUS_FILTERS.map((f) => (

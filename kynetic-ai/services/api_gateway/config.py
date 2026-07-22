@@ -18,10 +18,14 @@ class APIGatewaySettings(BaseServiceSettings):
     marketplace_service_url: str = "http://marketplace_service:8003"  # Phase 3
     wallet_billing_service_url: str = "http://wallet_billing_service:8004"  # Phase 3
     provisioning_service_url: str = "http://provisioning_service:8005"
-    ai_router_copilot_service_url: str = "http://ai_router_copilot_service:8006"
-    reputation_pricing_service_url: str = "http://reputation_pricing_service:8007"
-    hybrid_broker_service_url: str = "http://hybrid_broker_service:8008"
-    monitoring_service_url: str = "http://monitoring_service:8009"
+    security_service_url: str = "http://security_service:8006"         # Phase 5
+    ai_router_copilot_service_url: str = "http://ai_router_copilot_service:8007"
+    reputation_pricing_service_url: str = "http://reputation_pricing_service:8008"
+    hybrid_broker_service_url: str = "http://hybrid_broker_service:8009"
+    monitoring_service_url: str = "http://monitoring_service:8010"
+
+    # Alias used by Phase 5 rate_limiter.py
+    rate_limit_rpm: int = 60
 
 
     # Rate limiting — per-IP, per-minute sliding window (Redis-backed)

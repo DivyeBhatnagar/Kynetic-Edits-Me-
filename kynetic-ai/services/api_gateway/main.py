@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIDMiddleware
 from services.api_gateway.config import get_settings
-from services.api_gateway.middleware import RateLimitMiddleware
+from services.api_gateway.rate_limiter import RateLimitConfig, RateLimiterMiddleware
 from services.api_gateway.routes import gateway_router
 
 logger = structlog.get_logger(__name__)
@@ -47,7 +47,14 @@ def create_app() -> FastAPI:
 
     # Middleware (outermost first)
     app.add_middleware(CorrelationIDMiddleware)
-    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(
+        RateLimiterMiddleware,
+        config=RateLimitConfig(
+            redis_url=settings.redis_url,
+            default_rpm=settings.rate_limit_rpm if hasattr(settings, "rate_limit_rpm") else 60,
+            burst=10,
+        ),
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

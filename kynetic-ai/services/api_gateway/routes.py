@@ -460,3 +460,95 @@ async def proxy_instance_deletion_receipt(
         f"{settings.provisioning_service_url}/v1/instances/{instance_id}/deletion-receipt",
     )
 
+
+# ── Phase 5: Security Service Proxy Routes ─────────────────────────────────
+
+@gateway_router.api_route(
+    "/admin/kill-switch",
+    methods=["POST"],
+    tags=["Security Proxy"],
+    summary="Proxy: POST /admin/kill-switch → security_service (admin-only)",
+)
+async def proxy_kill_switch(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Admin-only. Instantly suspends an instance, host, or account."""
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/admin/kill-switch",
+    )
+
+
+@gateway_router.api_route(
+    "/admin/security-events",
+    methods=["GET"],
+    tags=["Security Proxy"],
+    summary="Proxy: GET /admin/security-events → security_service (admin-only)",
+)
+async def proxy_security_events(
+    request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/admin/security-events",
+    )
+
+
+@gateway_router.api_route(
+    "/admin/users/{user_id}/trust-tier",
+    methods=["PUT"],
+    tags=["Security Proxy"],
+    summary="Proxy: PUT /admin/users/{id}/trust-tier → security_service (admin-only)",
+)
+async def proxy_admin_update_trust_tier(
+    user_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/admin/users/{user_id}/trust-tier",
+    )
+
+
+@gateway_router.api_route(
+    "/users/{user_id}/trust-tier",
+    methods=["GET"],
+    tags=["Security Proxy"],
+    summary="Proxy: GET /users/{id}/trust-tier → security_service (protected)",
+)
+async def proxy_get_trust_tier(
+    user_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/users/{user_id}/trust-tier",
+    )
+
+
+@gateway_router.api_route(
+    "/identity/verify/id-document",
+    methods=["POST"],
+    tags=["Security Proxy"],
+    summary="Proxy: POST /identity/verify/id-document → security_service (protected)",
+)
+async def proxy_id_verify(
+    request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/identity/verify/id-document",
+    )
+
+
+@gateway_router.api_route(
+    "/security/fingerprint",
+    methods=["POST"],
+    tags=["Security Proxy"],
+    summary="Proxy: POST /security/fingerprint → security_service (protected)",
+)
+async def proxy_fingerprint(
+    request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request,
+        f"{settings.security_service_url}/v1/security/fingerprint",
+    )

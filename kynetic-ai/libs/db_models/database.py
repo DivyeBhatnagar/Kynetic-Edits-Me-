@@ -33,13 +33,23 @@ DATABASE_URL = os.environ.get(
     "postgresql+asyncpg://kynetic:kynetic@localhost:5432/kynetic",
 )
 
+# SQLite (used in tests/CI) does not support connection pool tuning args
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+_pool_kwargs = (
+    {}
+    if _is_sqlite
+    else {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_pre_ping": True,   # Detect stale connections before use
+        "pool_recycle": 3600,    # Recycle connections after 1 hour
+    }
+)
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=os.environ.get("SQLALCHEMY_ECHO", "false").lower() == "true",
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,          # Detect stale connections before use
-    pool_recycle=3600,           # Recycle connections after 1 hour
+    **_pool_kwargs,
 )
 
 async_session_factory = async_sessionmaker(

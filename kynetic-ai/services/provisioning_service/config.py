@@ -32,6 +32,7 @@ class ProvisioningSettings(BaseSettings):
     wallet_billing_service_url: str = "http://wallet_billing_service:8004"
     marketplace_service_url: str = "http://marketplace_service:8003"
     host_service_url: str = "http://host_service:8002"
+    security_service_url: str = "http://security_service:8006"   # Phase 5
 
     # ── mTLS ───────────────────────────────────────────────────────────────
     # Paths to certs used when calling host agents over mTLS

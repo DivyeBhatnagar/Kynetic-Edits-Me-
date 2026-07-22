@@ -17,8 +17,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.common.auth import require_auth
+from libs.common.audit import audit_log
 from libs.common.database import get_db_session
 from libs.db_models.marketplace_models import Currency, TransactionType
+from libs.db_models.security_models import SecurityEventSeverity, SecurityEventType
 from services.wallet_billing_service import stripe_client as sc
 from services.wallet_billing_service.billing import InsufficientFundsError, usd_to_inr
 from services.wallet_billing_service.config import get_settings
@@ -146,6 +148,21 @@ async def topup_wallet(
         amount_usd=float(body.amount_usd),
         payment_intent_id=intent.id,
     )
+
+    # Security audit: log top-up initiation for fraud detection pipeline
+    await audit_log(
+        session,
+        SecurityEventType.wallet_topup_initiated,
+        user_id=user_id,
+        resource_type="wallet",
+        resource_id=str(wallet.id),
+        details={
+            "amount_usd": float(body.amount_usd),
+            "payment_intent_id": intent.id,
+        },
+    )
+    await session.commit()
+
     return TopupResponse(
         payment_intent_id=intent.id,
         client_secret=intent.client_secret,
@@ -228,6 +245,21 @@ async def stripe_webhook(
             stripe_payment_intent_id=payment_intent_id,
             description=f"Wallet top-up via Stripe (${amount_usd:.2f})",
         )
+
+        # Security audit: confirmed payment credit
+        await audit_log(
+            session,
+            SecurityEventType.payment_confirmed,
+            user_id=user_id,
+            resource_type="wallet",
+            resource_id=str(wallet.id),
+            details={
+                "amount_usd": float(amount_usd),
+                "payment_intent_id": payment_intent_id,
+                "stripe_event_id": event.get("id"),
+            },
+        )
+
         await session.commit()
         logger.info(
             "wallet_credited",

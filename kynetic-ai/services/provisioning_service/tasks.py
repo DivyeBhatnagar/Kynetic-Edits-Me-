@@ -106,6 +106,39 @@ async def _provision_instance_async(instance_id_str: str) -> None:
                 )
                 return
 
+            # ── Phase 5: Image scan pre-check ─────────────────────────────
+            # Skip when FIRECRACKER_MOCK=true (no real images in dev/CI)
+            if not settings.firecracker_mock and instance.docker_image:
+                import httpx
+                try:
+                    async with httpx.AsyncClient(timeout=60.0) as http:
+                        scan_resp = await http.post(
+                            f"{settings.security_service_url}/v1/internal/scan-image",
+                            params={
+                                "image": instance.docker_image,
+                                "instance_id": instance_id_str,
+                            },
+                        )
+                        scan_resp.raise_for_status()
+                        scan_result = scan_resp.json()
+                    if scan_result.get("blocked"):
+                        log.critical(
+                            "provision_instance.image_blocked",
+                            instance_id=instance_id_str,
+                            image=instance.docker_image,
+                            critical=scan_result.get("critical_count"),
+                            high=scan_result.get("high_count"),
+                        )
+                        await instance_repo.transition_state(iid, InstanceStatus.failed)
+                        return
+                except Exception as exc:
+                    # Scan failure is non-fatal in dev; fail open
+                    log.warning(
+                        "provision_instance.scan_unavailable",
+                        instance_id=instance_id_str,
+                        error=str(exc),
+                    )
+
             # Transition: pending → provisioning
             await instance_repo.transition_state(iid, InstanceStatus.provisioning)
 

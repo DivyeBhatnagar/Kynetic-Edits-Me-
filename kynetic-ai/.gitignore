@@ -1,0 +1,55 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Environment files (NEVER commit these) ────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ── IDE / Editor ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+*.dockerignore
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+# Don't ignore migrations — they are source-controlled
+# *.pyc already covered above
+
+# ── Mypy ─────────────────────────────────────────────────────────────────────
+.mypy_cache/
+
+# ── Node (frontend) ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

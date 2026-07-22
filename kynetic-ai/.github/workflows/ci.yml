@@ -1,0 +1,466 @@
+name: CI — Lint, Test & Migrate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ── Lint ───────────────────────────────────────────────────────────────────
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint (ruff check)
+        run: ruff check .
+
+      - name: Format check (ruff format)
+        run: ruff format --check .
+
+  # ── Auth Service Tests ─────────────────────────────────────────────────────
+  test-auth-service:
+    name: Auth Service — Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kynetic
+          POSTGRES_PASSWORD: kynetic
+          POSTGRES_DB: kynetic_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kynetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@localhost:5432/kynetic_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      JWT_SECRET_KEY: ci_test_secret_key_12345
+      JWT_ALGORITHM: HS256
+      ENVIRONMENT: test
+      LOG_LEVEL: WARNING
+      BCRYPT_ROUNDS: "4"   # Fast rounds for tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/auth_service/requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx alembic
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Run Alembic migrations (test DB)
+        run: |
+          cd kynetic-ai
+          alembic upgrade head
+
+      - name: Run tests
+        run: |
+          cd kynetic-ai
+          pytest tests/auth_service/ -v --cov=services/auth_service --cov-report=xml --cov-report=term
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./kynetic-ai/coverage.xml
+          flags: auth_service
+        continue-on-error: true  # Don't fail CI if codecov is unavailable
+
+  # ── API Gateway Tests ──────────────────────────────────────────────────────
+  test-api-gateway:
+    name: API Gateway — Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci_test_secret_key_12345
+      ENVIRONMENT: test
+      LOG_LEVEL: WARNING
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r services/api_gateway/requirements.txt pytest pytest-asyncio httpx
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: |
+          cd kynetic-ai
+          pytest tests/api_gateway/ -v
+
+  # ── Migration smoke-test ───────────────────────────────────────────────────
+  migration-check:
+    name: Alembic Migration — up/down check
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kynetic
+          POSTGRES_PASSWORD: kynetic
+          POSTGRES_DB: kynetic_migrate_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kynetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@localhost:5432/kynetic_migrate_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install alembic sqlalchemy asyncpg pydantic pydantic-settings structlog cryptography
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Upgrade (apply all migrations)
+        run: |
+          cd kynetic-ai
+          alembic upgrade head
+
+      - name: Downgrade (rollback all migrations)
+        run: |
+          cd kynetic-ai
+          alembic downgrade base
+
+      - name: Re-upgrade (verify idempotency)
+        run: |
+          cd kynetic-ai
+          alembic upgrade head
+
+  # ── Host Service Tests ─────────────────────────────────────────────────────
+  test-host-service:
+    name: Host Service — Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kynetic
+          POSTGRES_PASSWORD: kynetic
+          POSTGRES_DB: kynetic_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kynetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@localhost:5432/kynetic_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: ci_test_secret_key_12345
+      JWT_ALGORITHM: HS256
+      ENVIRONMENT: test
+      LOG_LEVEL: WARNING
+      BCRYPT_ROUNDS: "4"
+      VRAM_MISMATCH_TOLERANCE_PCT: "10.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/auth_service/requirements.txt
+          pip install -r services/host_service/requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx cryptography alembic
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Run Alembic migrations (test DB)
+        run: |
+          cd kynetic-ai
+          alembic upgrade head
+
+      - name: Run tests
+        run: |
+          cd kynetic-ai
+          pytest tests/host_service/ -v --cov=services/host_service --cov-report=xml --cov-report=term
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./kynetic-ai/coverage.xml
+          flags: host_service
+        continue-on-error: true
+
+  # ── Host Agent Unit Tests ──────────────────────────────────────────────────
+  test-host-agent:
+    name: Host Agent — Unit Tests (CPU only)
+    runs-on: ubuntu-latest
+    needs: lint
+
+    env:
+      ENVIRONMENT: test
+      LOG_LEVEL: WARNING
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies (CPU torch for CI speed)
+        run: |
+          pip install psutil httpx redis structlog GPUtil
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pytest pytest-asyncio
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Run host agent unit tests
+        run: |
+          cd kynetic-ai
+          pytest tests/host_agent/ -v -x
+
+  # ── Hardware Verification Unit Tests ──────────────────────────────────────
+  test-verification-engine:
+    name: Hardware Verification Engine — Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    env:
+      ENVIRONMENT: test
+      LOG_LEVEL: WARNING
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pydantic pydantic-settings structlog pytest pytest-asyncio
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Run verification engine tests
+        run: |
+          cd kynetic-ai
+          pytest tests/host_service/test_host.py::test_verification_rtx4090_correct_vram \
+                 tests/host_service/test_host.py::test_verification_rtx4090_spoofed_vram \
+                 tests/host_service/test_host.py::test_verification_cpu_only_passes \
+                 tests/host_service/test_host.py::test_verification_unknown_gpu_warns_not_flags \
+                 tests/host_service/test_host.py::test_verification_implausible_ram_flagged \
+                 -v
+
+  # ── Phase 3: Marketplace Service tests ──────────────────────────────────
+  test-marketplace-service:
+    name: "Test — Marketplace Service"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kynetic-ai
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install fastapi httpx sqlalchemy[asyncio] asyncpg pydantic pydantic-settings \
+                      redis structlog pytest pytest-asyncio python-jose[cryptography]
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Structural syntax check
+        run: |
+          python3 -m py_compile services/marketplace_service/config.py
+          python3 -m py_compile services/marketplace_service/schemas.py
+          python3 -m py_compile services/marketplace_service/repository.py
+          python3 -m py_compile services/marketplace_service/availability.py
+          python3 -m py_compile services/marketplace_service/routes.py
+          python3 -m py_compile services/marketplace_service/tasks.py
+          python3 -m py_compile services/marketplace_service/celery_app.py
+          python3 -m py_compile services/marketplace_service/main.py
+          python3 -m py_compile libs/db_models/marketplace_models.py
+          echo "All marketplace service files compile clean."
+
+      - name: Run marketplace tests
+        run: pytest tests/marketplace_service/ -v --tb=short
+
+  # ── Phase 3: Wallet & Billing Service tests ──────────────────────────────
+  test-wallet-service:
+    name: "Test — Wallet & Billing Service"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kynetic-ai
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install fastapi httpx sqlalchemy[asyncio] asyncpg pydantic pydantic-settings \
+                      redis structlog stripe pytest pytest-asyncio python-jose[cryptography]
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/kynetic-ai" >> $GITHUB_ENV
+
+      - name: Structural syntax check
+        run: |
+          python3 -m py_compile services/wallet_billing_service/config.py
+          python3 -m py_compile services/wallet_billing_service/schemas.py
+          python3 -m py_compile services/wallet_billing_service/billing.py
+          python3 -m py_compile services/wallet_billing_service/stripe_client.py
+          python3 -m py_compile services/wallet_billing_service/repository.py
+          python3 -m py_compile services/wallet_billing_service/routes.py
+          python3 -m py_compile services/wallet_billing_service/event_listener.py
+          python3 -m py_compile services/wallet_billing_service/tasks.py
+          python3 -m py_compile services/wallet_billing_service/main.py
+          echo "All wallet billing service files compile clean."
+
+      - name: Run billing math unit tests (pure Decimal, no DB)
+        run: |
+          pytest tests/wallet_billing_service/test_wallet.py::TestBillingMath -v --tb=short
+
+      - name: Run full wallet service tests
+        run: pytest tests/wallet_billing_service/ -v --tb=short
+
+  # ── Phase 3: Frontend build check ────────────────────────────────────────
+  build-frontend:
+    name: "Build — Frontend (Next.js)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kynetic-ai/frontend
+    if: ${{ hashFiles('kynetic-ai/frontend/package.json') != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: kynetic-ai/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder

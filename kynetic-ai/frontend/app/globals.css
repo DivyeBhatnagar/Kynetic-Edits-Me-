@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+
+/* ── Design Tokens ────────────────────────────────────────────────────── */
+:root {
+  /* Brand colors */
+  --brand-primary: hsl(258 90% 66%);       /* #7C3AED-ish violet */
+  --brand-secondary: hsl(195 100% 50%);    /* Cyan accent */
+  --brand-glow: hsl(258 90% 66% / 0.35);
+
+  /* Backgrounds */
+  --bg-base: hsl(224 27% 6%);             /* Near-black */
+  --bg-surface: hsl(224 20% 10%);
+  --bg-card: hsl(224 20% 13%);
+  --bg-elevated: hsl(224 20% 17%);
+
+  /* Borders */
+  --border-subtle: hsl(224 20% 20%);
+  --border-accent: hsl(258 60% 45%);
+
+  /* Text */
+  --text-primary: hsl(220 15% 95%);
+  --text-secondary: hsl(220 10% 65%);
+  --text-muted: hsl(220 10% 45%);
+
+  /* Status */
+  --status-available: hsl(142 71% 45%);
+  --status-offline: hsl(0 72% 51%);
+  --status-pending: hsl(45 93% 58%);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(258 90% 20% / 0.3), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 80%, hsl(195 100% 20% / 0.15), transparent);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+
+/* ── Typography ───────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 600; }
+code, pre { font-family: var(--font-mono); }
+
+/* ── Glass card ───────────────────────────────────────────────────────── */
+.glass {
+  background: linear-gradient(135deg, hsl(224 20% 15% / 0.8), hsl(224 20% 10% / 0.6));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+
+.glass-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.glass-hover:hover {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 24px var(--brand-glow), 0 8px 32px hsl(0 0% 0% / 0.4);
+  transform: translateY(-2px);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 24px;
+  background: linear-gradient(135deg, hsl(258 90% 60%), hsl(258 90% 50%));
+  color: #fff;
+  border: none; border-radius: 10px; font-weight: 600; font-size: 14px;
+  cursor: pointer; transition: all 0.2s ease;
+  box-shadow: 0 4px 16px hsl(258 90% 50% / 0.4);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px hsl(258 90% 50% / 0.6);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 16px;
+  background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-subtle); border-radius: 8px;
+  font-size: 14px; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border-accent); }
+
+/* ── Inputs ───────────────────────────────────────────────────────────── */
+.input {
+  width: 100%; padding: 10px 14px;
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--border-subtle); border-radius: 10px;
+  font-size: 14px; font-family: var(--font-sans);
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px hsl(258 90% 66% / 0.15);
+}
+.input::placeholder { color: var(--text-muted); }
+
+/* ── Badge ────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+}
+.badge-available { background: hsl(142 71% 45% / 0.15); color: var(--status-available); border: 1px solid hsl(142 71% 45% / 0.3); }
+.badge-offline    { background: hsl(0 72% 51% / 0.15);  color: var(--status-offline);   border: 1px solid hsl(0 72% 51% / 0.3); }
+.badge-gpu        { background: hsl(258 90% 66% / 0.15); color: var(--brand-primary);   border: 1px solid hsl(258 90% 66% / 0.3); }
+.badge-cpu        { background: hsl(195 100% 50% / 0.15); color: var(--brand-secondary); border: 1px solid hsl(195 100% 50% / 0.3); }
+
+/* ── Shimmer loading skeleton ─────────────────────────────────────────── */
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--bg-card) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ── Gradient text ────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Pulse dot (availability indicator) ──────────────────────────────── */
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.pulse-dot { animation: pulse-dot 2s infinite; }
+
+/* ── Fade-in animation ────────────────────────────────────────────────── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.4s ease forwards; }
+.fade-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.fade-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }

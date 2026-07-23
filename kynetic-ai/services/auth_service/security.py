@@ -4,8 +4,8 @@ Auth Service — JWT and password hashing utilities.
 Design decisions:
 - Short-lived access tokens (15 min default) + long-lived refresh tokens (30 days).
 - Refresh tokens are stored as SHA-256 hashes in DB — raw token only returned once.
-- Passwords hashed with passlib's bcrypt backend.
-- python-jose used for JWT encode/decode.
+- Passwords hashed with bcrypt.
+- PyJWT used for JWT encode/decode.
 """
 
 import hashlib
@@ -13,29 +13,31 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
+import jwt
 import structlog
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from services.auth_service.config import get_settings
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 
-# ---------------------------------------------------------------------------
-# Password hashing — bcrypt via passlib
-# ---------------------------------------------------------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=settings.bcrypt_rounds)
 
-
+# ---------------------------------------------------------------------------
+# Password hashing — bcrypt
+# ---------------------------------------------------------------------------
 def hash_password(plain_password: str) -> str:
     """Return bcrypt hash of the plain-text password."""
-    return pwd_context.hash(plain_password)
+    salt = bcrypt.gensalt(rounds=settings.bcrypt_rounds)
+    return bcrypt.hashpw(plain_password.encode("utf-8"), salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Return True if plain_password matches the bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +75,7 @@ def create_access_token(
 def decode_access_token(token: str) -> dict:
     """
     Decode and validate a JWT access token.
-    Raises jose.JWTError on invalid/expired token.
+    Raises jwt.PyJWTError on invalid/expired token.
     """
     return jwt.decode(
         token,
@@ -118,13 +120,15 @@ def generate_otp() -> str:
 
 def hash_otp(otp: str) -> str:
     """
-    Hash an OTP for storage.
-    Uses bcrypt (same pwd_context) so it's resistant to offline cracking
-    even for 6-digit values.
+    Hash an OTP for storage using bcrypt.
     """
-    return pwd_context.hash(otp)
+    salt = bcrypt.gensalt(rounds=settings.bcrypt_rounds)
+    return bcrypt.hashpw(otp.encode("utf-8"), salt).decode("utf-8")
 
 
 def verify_otp(plain_otp: str, hashed_otp: str) -> bool:
     """Return True if plain_otp matches the stored hash."""
-    return pwd_context.verify(plain_otp, hashed_otp)
+    try:
+        return bcrypt.checkpw(plain_otp.encode("utf-8"), hashed_otp.encode("utf-8"))
+    except Exception:
+        return False

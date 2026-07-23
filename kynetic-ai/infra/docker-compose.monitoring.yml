@@ -1,0 +1,57 @@
+# Kynetic — Monitoring Stack (Phase 10)
+# Prometheus + Grafana for platform-wide metrics
+#
+# Usage:
+#   docker compose -f infra/docker-compose.monitoring.yml up -d
+#
+# Prometheus scrapes GET /monitoring/metrics from the monitoring_service
+# every 15 seconds.
+# Grafana is pre-configured to read from Prometheus.
+
+version: "3.9"
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: kynetic_prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - kynetic_internal
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: kynetic_grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=kynetic_grafana_CHANGE_IN_PROD
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - kynetic_internal
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  kynetic_internal:
+    external: true
+    name: kynetic_internal

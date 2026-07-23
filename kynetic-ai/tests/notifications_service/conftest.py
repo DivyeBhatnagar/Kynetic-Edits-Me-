@@ -1,8 +1,8 @@
 """
-Local conftest for wallet_billing_service unit tests.
+Local conftest for notifications_service unit tests.
 
 Overrides the session-scoped setup_test_db fixture from the root conftest
-so unit tests (Razorpay, GST calculation, etc.) can run WITHOUT a database.
+so unit tests can run WITHOUT a database.
 """
 
 import pytest
@@ -10,10 +10,7 @@ import pytest
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
-    """
-    Override root conftest DB setup.
-    Unit tests in this directory don't need a DB connection.
-    """
+    """No DB needed for notifications unit tests."""
     yield
 
 

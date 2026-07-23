@@ -565,3 +565,131 @@ export const pricingSuggestApi = {
   suggest: (listingId: string, token: string): Promise<PricingSuggestion> =>
     request<PricingSuggestion>(`/pricing/suggest?listing_id=${listingId}`, { token }),
 };
+
+
+// ── Phase 10 Types ──────────────────────────────────────────────────────────
+
+export interface Invoice {
+  id: string;
+  transaction_id: string;
+  user_id: string;
+  invoice_number: string;
+  gstin: string | null;
+  amount_inr: string;
+  gst_rate_pct: string;
+  gst_amount_inr: string;
+  pdf_url: string | null;
+  issued_at: string;
+}
+
+export interface InvoiceListResponse {
+  items: Invoice[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface Notification {
+  id: string;
+  notification_type: string;
+  channel: string;
+  title: string;
+  body: string;
+  payload: Record<string, unknown> | null;
+  is_read: boolean;
+  sent_at: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  items: Notification[];
+  total: number;
+  unread_count: number;
+  page: number;
+  page_size: number;
+}
+
+export interface NotificationPreference {
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  low_balance_threshold_usd: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  user_id: string;
+  region: string;
+  subject: string;
+  status: string;
+  external_ticket_id: string | null;
+  created_at: string;
+}
+
+export interface UpiTopupResponse {
+  razorpay_order_id: string;
+  amount_inr: string;
+  amount_paise: number;
+  razorpay_key_id: string;
+  currency: string;
+}
+
+
+// ── Phase 10 API helpers ────────────────────────────────────────────────────
+
+export const notificationsApi = {
+  list: (token: string, params?: { page?: number; unread_only?: boolean }): Promise<NotificationListResponse> => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.unread_only) q.set("unread_only", "true");
+    return request<NotificationListResponse>(`/notifications?${q}`, { token });
+  },
+  markRead: (id: string, token: string): Promise<void> =>
+    request<void>(`/notifications/${id}/read`, { method: "POST", token }),
+  markAllRead: (token: string): Promise<void> =>
+    request<void>("/notifications/mark-all-read", { method: "POST", token }),
+  getPreferences: (token: string): Promise<NotificationPreference> =>
+    request<NotificationPreference>("/notifications/preferences", { token }),
+  updatePreferences: (prefs: Partial<NotificationPreference>, token: string): Promise<NotificationPreference> =>
+    request<NotificationPreference>("/notifications/preferences", {
+      method: "PUT",
+      body: JSON.stringify(prefs),
+      token,
+    }),
+};
+
+export const invoicesApi = {
+  list: (token: string, page = 1): Promise<InvoiceListResponse> =>
+    request<InvoiceListResponse>(`/billing/invoices?page=${page}`, { token }),
+  get: (id: string, token: string): Promise<Invoice> =>
+    request<Invoice>(`/billing/invoices/${id}`, { token }),
+};
+
+export const supportApi = {
+  create: (body: { subject: string; description: string; region: string }, token: string): Promise<SupportTicket> =>
+    request<SupportTicket>("/support/tickets", {
+      method: "POST",
+      body: JSON.stringify(body),
+      token,
+    }),
+  list: (token: string): Promise<SupportTicket[]> =>
+    request<SupportTicket[]>("/support/tickets", { token }),
+};
+
+export const upiApi = {
+  createOrder: (amount_inr: number, token: string): Promise<UpiTopupResponse> =>
+    request<UpiTopupResponse>("/wallet/topup/upi", {
+      method: "POST",
+      body: JSON.stringify({ amount_inr }),
+      token,
+    }),
+  confirmPayment: (
+    payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+    token: string
+  ): Promise<{ received: boolean; status: string }> =>
+    request("/billing/webhooks/razorpay", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      token,
+    }),
+};

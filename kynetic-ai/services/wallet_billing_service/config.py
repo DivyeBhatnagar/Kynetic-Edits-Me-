@@ -23,6 +23,16 @@ class WalletBillingSettings(BaseServiceSettings):
     # Redis pub/sub channel for user.created events (from auth_service)
     user_created_channel: str = "kynetic:events:user_created"
 
+    # ── Razorpay (Phase 10 — India payments) ──────────────────────────────
+    # Set RAZORPAY_MOCK_MODE=false in production to use real Razorpay API
+    razorpay_key_id: str = "rzp_test_REPLACE_WITH_REAL_KEY_ID"
+    razorpay_key_secret: str = "REPLACE_WITH_REAL_KEY_SECRET"
+    razorpay_webhook_secret: str = "REPLACE_WITH_REAL_WEBHOOK_SECRET"
+    razorpay_mock_mode: bool = True   # True = zero real API calls (dev/CI safe)
+
+    # Notifications service URL (internal, for cross-service event dispatch)
+    notifications_service_url: str = "http://notifications_service:8010"
+
 
 @lru_cache
 def get_settings() -> WalletBillingSettings:

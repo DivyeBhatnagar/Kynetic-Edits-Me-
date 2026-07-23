@@ -1,0 +1,32 @@
+# Prometheus configuration — Kynetic Platform (Phase 10)
+# Scrapes monitoring_service /monitoring/metrics every 15s
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    platform: kynetic
+    env: production
+
+scrape_configs:
+  - job_name: kynetic_monitoring
+    static_configs:
+      - targets:
+          - monitoring_service:8011
+    metrics_path: /monitoring/metrics
+    scrape_interval: 15s
+
+  # Optionally scrape each service directly if they expose /metrics
+  - job_name: kynetic_api_gateway
+    static_configs:
+      - targets:
+          - api_gateway:8000
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: kynetic_provisioning
+    static_configs:
+      - targets:
+          - provisioning_service:8004
+    metrics_path: /metrics
+    scrape_interval: 30s

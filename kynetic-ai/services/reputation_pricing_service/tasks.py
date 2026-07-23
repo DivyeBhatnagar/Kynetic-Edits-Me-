@@ -181,7 +181,7 @@ def predict_idle_time_batch(self) -> dict:
             get_heartbeats_for_host,
             save_idle_prediction,
         )
-        from services.reputation_pricing_service.idle_predictor import predict_idle_time
+        from services.reputation_pricing_service.pricing import predict_idle_time
 
         async with AsyncSessionFactory() as session:
             result = await session.execute(

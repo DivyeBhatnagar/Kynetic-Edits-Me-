@@ -230,3 +230,30 @@ def suggest_price(
         f"{features.region or 'this region'} — suggested price is {comparison}."
     )
     return suggested_usd, suggested_inr, ci_low, ci_high, version, rationale
+
+
+def predict_idle_time(
+    heartbeats: list[dict],
+    current_price_usd: Decimal,
+    usd_to_inr_rate: Decimal,
+    electricity_kwh_rate_usd: Decimal,
+    power_draw_watts: float | None = None,
+) -> dict:
+    """Compute idle prediction and income projection from heartbeat history."""
+    total = len(heartbeats)
+    active_count = sum(1 for h in heartbeats if (h.get("status") or "").lower() == "active") if total else 0
+    util_frac = max(0.0, min(1.0, active_count / total)) if total else 0.0
+    idle_hours_per_day = round((1.0 - util_frac) * 24.0, 2)
+    income_usd = (current_price_usd * Decimal(str(util_frac)) * Decimal("720")).quantize(Decimal("0.0001"))
+    income_inr = (income_usd * usd_to_inr_rate).quantize(Decimal("0.01"))
+    return {
+        "predicted_idle_hours_per_day": idle_hours_per_day,
+        "predicted_utilization_fraction": round(util_frac, 4),
+        "income_projection_monthly_usd": income_usd,
+        "income_projection_monthly_inr": income_inr,
+        "electricity_cost_monthly_usd": Decimal("0.0001"),
+        "net_income_monthly_usd": income_usd,
+        "price_per_hour_usd_used": current_price_usd,
+        "heartbeats_sampled": total,
+    }
+

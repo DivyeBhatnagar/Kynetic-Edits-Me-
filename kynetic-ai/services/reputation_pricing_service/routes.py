@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from libs.db_models.database import get_db_session
 from libs.common.auth import require_auth
 from services.reputation_pricing_service.config import get_settings
-from services.reputation_pricing_service.idle_predictor import predict_idle_time
+from services.reputation_pricing_service.pricing import predict_idle_time
 from services.reputation_pricing_service.pricing import PricingFeatures, suggest_price
 from services.reputation_pricing_service.reputation import ReputationInputs, compute_reputation
 from services.reputation_pricing_service.repository import (

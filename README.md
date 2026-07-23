@@ -119,94 +119,31 @@ Data Infrastructure:
 
 ```
 kynetic-ai/
-├── apps/
-│   ├── frontend/                  # Next.js 14 Developer & Host public web portal (Phase 18)
-│   │   ├── app/onboarding/        # Guided 3-step non-technical host onboarding wizard
-│   │   ├── app/instances/         # Live instance management console & SSH connection drawer
-│   │   ├── app/copilot/           # WebSocket AI Copilot chat UI & 1-click deployment
-│   │   ├── app/terms/             # Public Terms of Service & AUP page
-│   │   ├── app/privacy/           # Public Privacy Policy & DPDP Act statement page
-│   │   ├── lib/i18n.ts            # English & Hindi internationalization scaffold
-│   │   └── components/            # Reusable LoadingSkeleton & EmptyState components
-│   └── admin_dashboard/           # Next.js 14 Internal Operations & Admin Console (Phase 15)
-│       ├── app/layout.tsx         # Operations shell & navigation drawer
-│       ├── app/page.tsx           # Real-time operational metric overview
-│       ├── app/fraud/page.tsx     # Fraud & Trust Review Queue UI
-│       ├── app/tickets/page.tsx   # Support Ticket Resolution Center UI
-│       ├── app/reconciliation/page.tsx # Financial Reconciliation Ledger Audit UI
-│       └── app/hosts/page.tsx     # Host & Hardware Moderation UI
-├── libs/
-│   ├── db_models/                 # Shared SQLAlchemy models & Alembic migrations
-│   ├── schemas/                   # Pydantic schemas for request/response validation
-│   ├── common/                    # structlog logger, httpx async client wrapper, settings
-│   └── security/                  # Zero-Trust Security v4 & v5 Modules
-│       ├── cc_detector.py         # Hardware CC capability detector (SEV-SNP/TDX/Hopper CC)
-│       ├── ram_overlay.py         # ChaCha20-Poly1305 RAM encryption overlay (mlock + MADV_DONTDUMP)
-│       ├── anti_tamper.py         # Host process anti-debugging & anti-ptrace (prctl PR_SET_DUMPABLE)
-│       ├── tpm_attestation.py     # Dynamic TPM 2.0 PCR quote & HMAC challenge engine
-│       └── gvisor_sandbox.py      # gVisor (runsc) user-space kernel seccomp policy generator
-├── services/
-│   ├── api_gateway/               # Reverse proxy, rate-limiting token bucket, JWT check
-│   ├── auth_service/              # User auth, passlib hashing, JWT rotation, phone OTP
-│   ├── marketplace_service/       # Listing management, hardware search, scheduler
-│   ├── provisioning_service/      # Phase 4 & Phase 22 Provisioning Service
-│   │   └── ephemeral_crypto.py    # LUKS2 encrypted storage & instant 3-pass shredder
-│   ├── wallet_billing_service/    # Wallet transactions, Stripe & Razorpay SDKs, GST engine
-│   ├── ai_router_copilot_service/ # LangChain intent parser, ranking engine, WS copilot chat
-│   ├── reputation_pricing_service/# scikit-learn auto-pricing, 6-factor reputation engine
-│   ├── security_service/          # Phase 5 & Phase 19–26 Security Service
-│   │   ├── attestation_sealer.py  # ECDH + HKDF host-blind secret sealing engine
-│   │   ├── continuous_attestation.py # Continuous sub-minute re-attestation auto-kill loop
-│   │   ├── execution_cert.py     # Ed25519 signed compute execution certificate issuer
-│   │   └── ebpf_firewall.py       # eBPF XDP network micro-segmentation (RFC 1918 LAN drop)
-│   ├── host_service/              # Host hardware registration & heartbeat ingest
-│   ├── notifications_service/     # Event notification worker & email dispatcher
-│   └── monitoring_service/        # Prometheus client metrics scrape & health engine
-├── host_agent/                    # Python PyInstaller agent, pynvml/psutil hardware probe
-├── Docs/
-│   ├── Plans/                     # Master roadmaps & Security Plans v3, v4, v5, Launch Master Plan
-│   │   └── Kynetic_AI_Live_Production_Launch_Master_Plan.md # Itemized 100% bug-free launch plan
-│   ├── legal/                     # Phase 17 Legal & Compliance Agreements
-│   │   ├── terms-of-service-aup.md# Terms of Service & AUP (prohibited workloads, kill-switch)
-│   │   ├── privacy-policy.md      # Privacy Policy (telemetry scope, zero host file access)
-│   │   ├── host-agreement.md      # Host Hardware Marketplace Agreement (85/15 split, liability)
-│   │   ├── refund-dispute-policy.md # Refund & Dispute Policy (chargebacks, GST credit notes)
-│   │   ├── india-dpdp-compliance.md # India DPDP Act 2023 & ap-south-1 Data Residency Review
-│   │   └── soc2-readiness-assessment.md # SOC 2 Type I/II Readiness Audit (88% ready)
-│   └── runbooks/                  # Phase 13 Operational Incident Runbooks
-│       ├── kill-switch-activation.md
-│       ├── database-failover.md
-│       ├── payment-gateway-outage.md
-│       └── mass-host-disconnection.md
-├── infra/
-│   ├── terraform/                 # AWS IaC — VPC, EKS, RDS, Redis, S3, ECR (Phase 12)
-│   ├── k8s/                       # Kubernetes production manifests (Phase 12)
-│   ├── secrets/                   # Vault policy + External Secrets Operator CRDs
-│   ├── cdn/                       # Cloudflare Terraform — DNS, WAF, edge rate limits
-│   ├── observability/             # Phase 13 Observability & Alerting Stack
-│   │   ├── grafana-dashboards/    # Pre-built JSON dashboards (API, Provisioning, Billing, Host)
-│   │   ├── alertmanager-rules/    # Prometheus alert rules (alerts.yml)
-│   │   ├── alertmanager/          # Alertmanager routing config (alertmanager.yml)
-│   │   └── loki/                  # Loki & Promtail log aggregation configs
-│   ├── docker-compose.yml         # Local full-stack (11 services + workers, Phase 12)
-│   └── docker-compose.monitoring.yml # Prometheus + Alertmanager + Grafana + Loki + Promtail stack (Phase 13)
-├── tests/                         # Pytest test suites (170 passing unit/integration/security/chaos/admin/financial/legal/frontend tests)
-│   ├── unit/                      # Phase 14 unit tests (billing math, wallet ledger, state machine)
-│   ├── integration/               # Phase 14 end-to-end multi-step integration flow tests
-│   ├── load/                      # Phase 14 Locust & k6 load test suites (10x launch traffic)
-│   ├── security/                  # Security hardening & Zero-Trust v4/v5 test suites (19 tests)
-│   ├── chaos/                     # Phase 14 fault-injection tests (host loss, DB drop, webhook retry)
-│   ├── admin/                     # Phase 15 admin operations & reconciliation tests (14 tests)
-│   ├── financial/                 # Phase 16 double-entry & tax withholding tests (13 tests)
-│   ├── legal/                     # Phase 17 legal & compliance tests (8 tests)
-│   ├── frontend/                  # Phase 18 frontend routes & checklist sign-off tests (7 tests)
-│   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
-│   └── observability/             # Phase 13 observability tests (19 tests)
-├── .github/workflows/             # GitHub Actions CI/CD pipelines
-│   ├── ci.yml                     # Test + lint on PR
-│   └── deploy.yml                 # Blue-green deploy: ECR build → DB migrate → rollout (Phase 12)
-├── alembic.ini                    # Alembic migration configuration
-└── pyproject.toml                 # Root Python project dependencies
+├── frontend/             # Next.js 16 Unified Web Application (User, Host & Admin)
+│   ├── app/              # Next.js App Router (marketplace, copilot, instances, wallet, admin, etc.)
+│   ├── components/       # UI Components & Navigation
+│   └── lib/              # API Client & Zustand Auth Store
+├── libs/                 # Shared Python Libraries
+│   ├── db_models/        # Shared SQLAlchemy 2.0 Async DB models (User, Host, Listing, Instance, etc.)
+│   ├── schemas/          # Pydantic schemas for request/response validation
+│   └── common/           # structlog logger, httpx async client, middleware, settings
+├── services/             # FastAPI Microservices
+│   ├── api_gateway/      # Unified entry point, JWT validation & token-bucket rate limiter
+│   ├── auth_service/     # Authentication, bcrypt password hashing, PyJWT rotation & OTP
+│   ├── host_service/     # Host hardware registration & NVML telemetry ingestion
+│   ├── marketplace_service/ # Compute inventory, search engine & scheduling
+│   ├── wallet_billing_service/ # Wallet balances, dual-currency (USD/INR) & Stripe
+│   ├── provisioning_service/   # Instance lifecycle, Firecracker & WireGuard tunneling
+│   ├── security_service/       # Admin kill-switch, image scanner & trust tier governance
+│   ├── ai_router_copilot_service/ # Workload ranking & WebSocket Copilot chat
+│   ├── reputation_pricing_service/ # Dynamic pricing & 6-factor host reputation engine
+│   ├── notifications_service/  # Notification worker & email dispatcher
+│   └── monitoring_service/     # Prometheus client metrics scrape & health engine
+├── host_agent/           # Cross-platform Python Host Agent & PyTorch Benchmark Engine
+├── Docs/                 # Architecture, API & Setup Documentation
+├── infra/                # Docker Compose & Kubernetes production manifests
+├── tests/                # Pytest test suites
+└── pyproject.toml        # Root Python project dependencies
 ```
 
 ---
@@ -217,6 +154,7 @@ kynetic-ai/
 |---|---|
 | **Backend Framework** | FastAPI (ASGI, Async Python 3.11+) |
 | **Server Engine** | Uvicorn / Gunicorn |
+| **Authentication & Tokens** | `bcrypt` (password hashing) + `PyJWT` (JWT token rotation) |
 | **ORM & Database** | SQLAlchemy 2.0 (Async Engine) + PostgreSQL + Alembic |
 | **Caching & Messaging** | Redis 7+ (Session Store, Rate Limiting, Celery Broker) |
 | **Task Queue** | Celery + APScheduler |
@@ -227,12 +165,12 @@ kynetic-ai/
 | **Isolation & Virtualization** | Docker + Firecracker MicroVMs + WireGuard NAT Relays |
 | **Payments & Billing** | Stripe SDK (Global), Razorpay SDK (India UPI), 18% GST Engine |
 | **Telemetry & Logs** | `prometheus-client`, Grafana, `structlog` |
-| **Frontend UI** | Next.js 14 (App Router), TypeScript, Tailwind CSS, Lucide Icons |
+| **Frontend UI** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Lucide Icons |
 | **Cloud Infrastructure** | AWS EKS (Kubernetes 1.29), RDS PostgreSQL 16 (Multi-AZ), ElastiCache Redis 7.2 |
 | **Infrastructure as Code** | Terraform 1.6+ (VPC, EKS, RDS, Redis, S3, ECR) |
 | **Secrets Management** | HashiCorp Vault policy + AWS Secrets Manager + External Secrets Operator (IRSA) |
 | **CDN & Edge Security** | Cloudflare (DNS, WAF, DDoS, edge rate limiting) |
-| **Container Registry** | AWS ECR (scan-on-push enabled for all 11 service images) |
+| **Container Registry** | AWS ECR (scan-on-push enabled for all service images) |
 | **Testing & CI/CD** | `pytest`, `pytest-asyncio`, `httpx`, GitHub Actions (blue-green deploy) |
 
 ---

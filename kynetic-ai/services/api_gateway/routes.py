@@ -613,3 +613,83 @@ async def proxy_instance_web_ui(
         request,
         f"{settings.provisioning_service_url}/v1/instances/{instance_id}/web-ui",
     )
+
+
+# ---------------------------------------------------------------------------
+# AI Router routes (Phase 7) — JWT optional (auth extracts developer_id
+# for audit trail but recommendations are accessible unauthenticated)
+# ---------------------------------------------------------------------------
+@gateway_router.api_route(
+    "/router/recommend",
+    methods=["POST"],
+    tags=["AI Router Proxy"],
+    summary="Proxy: POST /router/recommend → ai_router_copilot_service (JWT optional)",
+)
+async def proxy_router_recommend(request: Request):
+    """
+    Budget/goal-based machine recommendation.
+    JWT is forwarded if present; the Router will extract developer_id for
+    the audit trail.  Rate-limited at 30 RPM at the ai_router_copilot_service.
+    """
+    return await _proxy_request(
+        request,
+        f"{settings.ai_router_copilot_service_url}/v1/router/recommend",
+    )
+
+
+# ---------------------------------------------------------------------------
+# AI Copilot routes (Phase 7) — JWT required
+# ---------------------------------------------------------------------------
+@gateway_router.api_route(
+    "/copilot/chat",
+    methods=["POST"],
+    tags=["AI Copilot Proxy"],
+    summary="Proxy: POST /copilot/chat → ai_router_copilot_service (protected)",
+)
+async def proxy_copilot_chat(request: Request, _: dict = Depends(require_auth)):
+    """
+    Stateful copilot chat (REST).  Use WebSocket endpoint for streaming.
+    Rate-limited at 20 RPM at the ai_router_copilot_service.
+    """
+    return await _proxy_request(
+        request,
+        f"{settings.ai_router_copilot_service_url}/v1/copilot/chat",
+    )
+
+
+@gateway_router.api_route(
+    "/copilot/sessions/{session_id}/history",
+    methods=["GET"],
+    tags=["AI Copilot Proxy"],
+    summary="Proxy: GET /copilot/sessions/{id}/history → ai_router_copilot_service (protected)",
+)
+async def proxy_copilot_history(
+    session_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    """Fetch full message history for a copilot session."""
+    return await _proxy_request(
+        request,
+        f"{settings.ai_router_copilot_service_url}/v1/copilot/sessions/{session_id}/history",
+    )
+
+
+@gateway_router.api_route(
+    "/copilot/ws/{session_id}",
+    methods=["GET"],
+    tags=["AI Copilot Proxy"],
+    summary="WebSocket upgrade: /copilot/ws/{session_id} → ai_router_copilot_service",
+    include_in_schema=True,
+)
+async def proxy_copilot_ws_upgrade(
+    session_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    """
+    WebSocket proxy endpoint.
+    In production the API gateway (nginx / Traefik / Kong) handles the
+    actual WS proxy transparently.  This route documents the endpoint and
+    enforces JWT auth at the gateway layer before the upgrade is allowed.
+    """
+    return await _proxy_request(
+        request,
+        f"{settings.ai_router_copilot_service_url}/v1/copilot/ws/{session_id}",
+    )

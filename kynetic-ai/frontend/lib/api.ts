@@ -317,3 +317,163 @@ export const templatesApi = {
   get: (idOrSlug: string) =>
     request<Template>(`/templates/${idOrSlug}`),
 };
+
+// ── Phase 7: AI Router & Copilot types ─────────────────────────────────────
+
+export interface BudgetFilter {
+  amount: string;
+  currency: "usd" | "inr";
+}
+
+export interface RecommendRequest {
+  budget?: BudgetFilter;
+  goal?: "fastest" | "cheapest" | "balanced";
+  template_id?: string;
+  min_gpu_vram_gb?: number;
+  region?: string;
+}
+
+export interface ScoredListing {
+  listing_id: string;
+  host_id: string;
+  title: string | null;
+  gpu_model: string | null;
+  gpu_count: number | null;
+  gpu_vram_gb: number | null;
+  cpu_cores: number | null;
+  ram_gb: number | null;
+  region: string | null;
+  price_per_hour_usd: string;
+  price_per_hour_inr: string;
+  estimated_cost_usd: string | null;
+  estimated_cost_inr: string | null;
+  estimated_hours: number | null;
+  score_price: number;
+  score_benchmark: number;
+  score_availability: number;
+  score_composite: number;
+  benchmark_score: number | null;
+  benchmark_type: string | null;
+  reputation_score: number;
+}
+
+export interface RecommendResponse {
+  recommendation_id: string;
+  request: Record<string, unknown>;
+  results: ScoredListing[];
+  total_candidates_evaluated: number;
+}
+
+export interface CopilotChatRequest {
+  session_id?: string;
+  message: string;
+}
+
+export interface CopilotChatResponse {
+  session_id: string;
+  message_id: string;
+  role: "assistant";
+  content: string;
+  recommendation: RecommendResponse | null;
+}
+
+export interface CopilotMessageOut {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  router_recommendation_id: string | null;
+  created_at: string;
+}
+
+export interface CopilotSessionHistory {
+  session_id: string;
+  developer_id: string | null;
+  created_at: string;
+  messages: CopilotMessageOut[];
+}
+
+export const routerApi = {
+  recommend: (body: RecommendRequest, token?: string) =>
+    request<RecommendResponse>("/router/recommend", {
+      method: "POST",
+      body: JSON.stringify(body),
+      token,
+    }),
+};
+
+export const copilotApi = {
+  chat: (body: CopilotChatRequest, token: string) =>
+    request<CopilotChatResponse>("/copilot/chat", {
+      method: "POST",
+      body: JSON.stringify(body),
+      token,
+    }),
+
+  getHistory: (sessionId: string, token: string) =>
+    request<CopilotSessionHistory>(`/copilot/sessions/${sessionId}/history`, {
+      token,
+    }),
+};
+
+/**
+ * WebSocket-based Copilot client.
+ *
+ * Usage:
+ *   const ws = new CopilotWebSocket(sessionId, token, onMessage, onError);
+ *   ws.send("I need a GPU for LoRA training with a ₹120 budget");
+ *   ws.close();
+ */
+export class CopilotWebSocket {
+  private ws: WebSocket | null = null;
+  private sessionId: string | null;
+
+  constructor(
+    sessionId: string | null,
+    private token: string,
+    private onMessage: (data: WSOutbound) => void,
+    private onError: (err: Event) => void,
+    private onOpen?: () => void,
+  ) {
+    this.sessionId = sessionId;
+    this._connect();
+  }
+
+  private _connect() {
+    const wsBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+      .replace("http://", "ws://")
+      .replace("https://", "wss://");
+    const url = `${wsBase}/copilot/ws/${this.sessionId ?? "new"}`;
+    this.ws = new WebSocket(url, [`Bearer.${this.token}`]);
+    this.ws.onmessage = (ev) => {
+      try {
+        this.onMessage(JSON.parse(ev.data) as WSOutbound);
+      } catch {
+        /* ignore parse errors */
+      }
+    };
+    this.ws.onerror = this.onError;
+    this.ws.onopen = () => this.onOpen?.();
+  }
+
+  send(message: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({ type: "chat", session_id: this.sessionId, message })
+      );
+    }
+  }
+
+  close() {
+    this.ws?.close();
+  }
+}
+
+export interface WSOutbound {
+  type: "chat_response" | "error" | "ping";
+  session_id: string | null;
+  message_id: string | null;
+  content: string;
+  recommendation: RecommendResponse | null;
+  error: string | null;
+}
+

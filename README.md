@@ -36,7 +36,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
 2. [Reference Architecture](#reference-architecture)
 3. [Monorepo Directory Structure](#monorepo-directory-structure)
 4. [Technology Stack](#technology-stack)
-5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 12)](#implementation-plan-exhaustive-deep-dive-phases-1--12)
+5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 26)](#implementation-plan-exhaustive-deep-dive-phases-1--26)
    - [Phase 1: Foundations & Core Platform Skeleton](#phase-1-foundations--core-platform-skeleton)
    - [Phase 2: Host Onboarding, Hardware Verification & Benchmarking](#phase-2-host-onboarding-hardware-verification--benchmarking)
    - [Phase 3: Compute-First Marketplace & Wallet/Billing Core](#phase-3-compute-first-marketplace--walletbilling-core)
@@ -237,7 +237,7 @@ kynetic-ai/
 
 ---
 
-## Implementation Plan Exhaustive Deep-Dive (Phases 1 – 12)
+## Implementation Plan Exhaustive Deep-Dive (Phases 1 – 26)
 
 ### Phase 1: Foundations & Core Platform Skeleton
 - **Objective**: Stand up the core async microservices chassis, database ORM layer, authentication engine, and CI/CD pipelines.

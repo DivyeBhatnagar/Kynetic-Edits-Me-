@@ -14,7 +14,19 @@
 
 Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats **all compute resources as a single resource-agnostic inventory**, replaces manual hardware selection with an **intent-based AI Resource Router & Copilot**, guarantees **zero-setup 1-click app launches**, and provides **India-first billing (UPI + GST invoicing)** alongside global Stripe support.
 
-> 📖 **New Developer?** Read [DEVELOPMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/DEVELOPMENT.md) for step-by-step setup, cloning, local microservice execution, database migration, and editing instructions.
+> 📖 **Documentation & Setup Guides**: Access complete setup, architecture, API, database, and security guides in [Docs/Setup/](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup):
+> - 🛠️ [SETUP.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/SETUP.md) — Step-by-step local installation guide
+> - 🏛️ [ARCHITECTURE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/ARCHITECTURE.md) — 11-microservice system architecture & topology
+> - 🔑 [ENVIRONMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/ENVIRONMENT.md) — Complete environment variables reference
+> - 🌐 [API.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/API.md) — REST & WebSocket API endpoint specification
+> - 🗄️ [DATABASE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/DATABASE.md) — PostgreSQL database schema & double-entry ledger
+> - 🚀 [DEPLOYMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/DEPLOYMENT.md) — Production AWS EKS, Terraform & Cloudflare deployment
+> - 💻 [HOST_AGENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/HOST_AGENT.md) — Host Agent daemon architecture & EV code signing
+> - 🛍️ [MARKETPLACE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/MARKETPLACE.md) — Intent-based AI router & 6-factor reputation ranking
+> - 🤝 [CONTRIBUTING.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/CONTRIBUTING.md) — Contribution guidelines & TDD workflow
+> - 🔧 [TROUBLESHOOTING.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/TROUBLESHOOTING.md) — Common error resolution & FAQ guide
+> - 📜 [CHANGELOG.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/CHANGELOG.md) — Release version history & security v4/v5 changes
+> - 📄 [LICENSE](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Setup/LICENSE) — Open source MIT License
 
 ---
 

@@ -39,6 +39,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
    - [Phase 13: Observability, Alerting & Incident Response](#phase-13-observability-alerting--incident-response)
    - [Phase 14: Testing, QA & Chaos Validation](#phase-14-testing-qa--chaos-validation)
    - [Phase 15: Admin Panel & Internal Operations Tooling](#phase-15-admin-panel--internal-operations-tooling)
+   - [Phase 16: Financial Operations & Compliance Hardening](#phase-16-financial-operations--compliance-hardening)
 6. [Launch Readiness: What Remains to be Built for Commercial MVP](#launch-readiness-what-remains-to-be-built-for-commercial-mvp)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -157,11 +158,16 @@ kynetic-ai/
 │       ├── database-failover.md
 │       ├── payment-gateway-outage.md
 │       └── mass-host-disconnection.md
-├── tests/                         # Pytest test suites (131 passing unit/integration/security/chaos/admin tests)
+├── tests/                         # Pytest test suites (144 passing unit/integration/security/chaos/admin/financial tests)
 │   ├── unit/                      # Phase 14 unit tests (billing math, wallet ledger, state machine)
 │   ├── integration/               # Phase 14 end-to-end multi-step integration flow tests
 │   ├── load/                      # Phase 14 Locust & k6 load test suites (10x launch traffic)
 │   ├── security/                  # Phase 14 container isolation & JWT auth abuse tests
+│   ├── chaos/                     # Phase 14 fault-injection tests (host loss, DB drop, webhook retry)
+│   ├── admin/                     # Phase 15 admin operations & reconciliation tests (14 tests)
+│   ├── financial/                 # Phase 16 double-entry & tax withholding tests (13 tests)
+│   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
+│   └── observability/             # Phase 13 observability tests (19 tests)                  # Phase 14 container isolation & JWT auth abuse tests
 │   ├── chaos/                     # Phase 14 fault-injection tests (host loss, DB drop, webhook retry)
 │   ├── admin/                     # Phase 15 admin operations & reconciliation tests (14 tests)
 │   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
@@ -493,6 +499,25 @@ kynetic-ai/
 
 ---
 
+### Phase 16: Financial Operations & Compliance Hardening
+- **Objective**: Make the financial architecture audit-proof with double-entry accounting ledgers, Indian TDS tax withholding, automated dispute processing, and daily reconciliation audits.
+- **Key Modules & Files**:
+  - `services/wallet_billing_service/ledger.py`: Immutable double-entry accounting engine enforcing $\sum \text{debit} == \sum \text{credit}$ across asset, liability, revenue, expense, and tax accounts.
+  - `services/wallet_billing_service/tax_withholding.py`: Indian Section 194O TDS withholding engine (1% for verified PAN vs 20% for unverified PAN) and US 1099-NEC calendar year threshold ($600 USD) tracker.
+  - `services/wallet_billing_service/chargeback_handler.py`: Stripe & Razorpay dispute webhook handler with automated wallet fund freezing (`opened`) and outcome resolution (`won` / `lost`).
+  - `services/wallet_billing_service/reconciliation_job.py`: Automated daily ledger reconciliation task cross-checking internal double-entry asset balances against provider statements.
+  - `services/wallet_billing_service/financial_routes.py`: FastAPI endpoints:
+    - `POST /billing/financial/ledger/post`
+    - `POST /billing/financial/tax/calculate-tds`
+    - `POST /billing/financial/disputes/webhook`
+    - `POST /billing/financial/reconciliation/run`
+- **Database Tables** (Migration `0016_financial_hardening`):
+  - `ledger_entries` — double-entry accounting log (`transaction_id`, `account`, `debit`, `credit`, `currency`)
+  - `chargebacks` — payment dispute tracking (`transaction_id`, `user_id`, `provider`, `status[opened|under_review|won|lost]`, `amount`)
+  - `tax_withholdings` — tax withholding records (`user_id`, `payout_id`, `jurisdiction[IN_TDS|US_1099]`, `gross_payout`, `tax_rate_pct`, `withheld_amount`, `pan_or_tin`)
+
+---
+
 ## Launch Readiness: What Remains to be Built for Commercial MVP
 
 Phases 1 through 12 are fully implemented. The core platform logic (Phases 1–10) is tested with mock modes; Phase 12 delivers the production infrastructure layer with 31 additional passing tests. The following **production activation tasks** are required before launching to live paying customers:
@@ -552,10 +577,10 @@ python3 -m pytest tests/infrastructure/ -v
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit, integration, load, security, chaos, and administrative test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, observability configurations, fault-injection resilience, and admin operations.
+The repository includes comprehensive unit, integration, load, security, chaos, administrative, and financial test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, observability configurations, fault-injection resilience, admin operations, and double-entry accounting.
 
 ```
-============================== 131 passed in 0.72s ==============================
+============================== 144 passed in 0.86s ==============================
 ```
 
 | Test Suite | Tests | Coverage |
@@ -568,11 +593,13 @@ The repository includes comprehensive unit, integration, load, security, chaos, 
 | E2E Integration (Phase 14) | 1 | Full multi-step platform lifecycle |
 | Security Hardening (Phase 14) | 8 | Container isolation rules, JWT signature forgery rejection, token expiry, RBAC authorization |
 | Chaos & Resilience (Phase 14) | 3 | Host disconnection mid-job, DB connection drop atomic rollback, webhook duplicate idempotency |
-| Admin Operations (Phase 15) | **14** | Admin ORM models (AdminUser, TicketActivityLog, FraudReviewItem), reconciliation drift math (zero vs non-zero drift), fraud actions, Next.js admin app project structure |
+| Admin Operations (Phase 15) | 14 | Admin ORM models, reconciliation drift math, fraud actions, Next.js admin app project structure |
+| Financial Hardening (Phase 16) | **13** | Double-entry balancing ($\sum \text{debit} == \sum \text{credit}$), unbalanced transaction rejection, 85/15 rental split, Indian Sec 194O TDS math (1% vs 20%), US 1099 threshold, dispute wallet freeze |
 
-**Phase 15 test highlights:**
-- ✅ Admin ORM models verified with proper indexes and enum constraints
-- ✅ Financial reconciliation drift auditor detects zero vs non-zero USD/INR ledger discrepancies
-- ✅ Next.js Admin Dashboard project structure verified (all 8 route components present)
-- ✅ Support ticket activity logger records admin response actions correctly
-- ✅ Fraud review queue action handler validates approved/rejected/suspended transitions
+**Phase 16 test highlights:**
+- ✅ Double-entry ledger engine verifies $\sum \text{debit} == \sum \text{credit}$ and rejects unbalanced transactions
+- ✅ 85% host / 15% platform commission split automatically balances debit vs credits
+- ✅ Sec 194O Indian TDS calculates 1.00% withholding for valid PAN and 20.00% for missing PAN
+- ✅ US 1099-NEC threshold checker tracks $600 USD calendar year limit
+- ✅ Payment dispute handler freezes wallet funds and processes won/lost resolution
+- ✅ Daily automated ledger audit detects zero drift vs provider statement discrepancies

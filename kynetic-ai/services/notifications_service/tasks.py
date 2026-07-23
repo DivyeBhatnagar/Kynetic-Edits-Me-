@@ -58,7 +58,7 @@ def dispatch_notification(
             NotificationPreference,
             NotificationType,
         )
-        from libs.db_models.models import User
+        from libs.db_models.user_models import User
         from services.notifications_service.config import get_settings
         from services.notifications_service.dispatcher import (
             EmailDispatcher,

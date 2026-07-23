@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import Base + all models so Alembic sees them for auto-generation
 from libs.db_models.database import Base
-from libs.db_models.models import AuditLog, PhoneOTP, RefreshToken, User  # noqa: F401
+from libs.db_models.user_models import AuditLog, PhoneOTP, RefreshToken, User  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Alembic Config object

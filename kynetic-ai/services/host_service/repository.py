@@ -22,7 +22,7 @@ from libs.db_models.host_models import (
     HostStatus,
     HeartbeatStatus,
 )
-from libs.db_models.models import AuditLog
+from libs.db_models.user_models import AuditLog
 from services.host_service.schemas import (
     BenchmarkResultSchema,
     HardwareSpecSchema,

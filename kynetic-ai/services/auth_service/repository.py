@@ -16,7 +16,7 @@ import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from libs.db_models.models import AuditLog, PhoneOTP, RefreshToken, User, UserRole
+from libs.db_models.user_models import AuditLog, PhoneOTP, RefreshToken, User, UserRole
 from services.auth_service.security import (
     generate_otp,
     hash_otp,

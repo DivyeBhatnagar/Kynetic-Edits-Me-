@@ -10,7 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from libs.db_models.models import UserRole
+from libs.db_models.user_models import UserRole
 
 
 # ---------------------------------------------------------------------------

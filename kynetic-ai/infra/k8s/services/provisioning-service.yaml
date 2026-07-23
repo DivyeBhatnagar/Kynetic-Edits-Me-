@@ -1,0 +1,136 @@
+# ── Kynetic AI — Provisioning Service K8s Deployment ────────────────────────
+#
+# Provisioning is the most load-spiky service — it handles instance launches
+# which have bursty, unpredictable concurrency patterns.
+# HPA max replicas: 20, with aggressive scale-up (4 pods per 60s).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provisioning-service
+  namespace: kynetic-production
+  labels:
+    app: provisioning-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: provisioning-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: provisioning-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8003"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 60  # Longer: allow in-flight provisioning to complete
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: provisioning-service
+
+      containers:
+        - name: provisioning-service
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/provisioning-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8003
+
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+            - secretRef:
+                name: provisioning-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: FIRECRACKER_MOCK
+              value: "false"  # Production: real Firecracker
+
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provisioning-service
+  namespace: kynetic-production
+spec:
+  type: ClusterIP
+  selector:
+    app: provisioning-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8003
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: provisioning-service-hpa
+  namespace: kynetic-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: provisioning-service
+  minReplicas: 2
+  maxReplicas: 20   # Highest max — most load-spiky service
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50  # Aggressive threshold for spiky workloads
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60   # Add 4 pods every 60s during spikes
+    scaleDown:
+      stabilizationWindowSeconds: 600  # 10 min cooldown to avoid flapping

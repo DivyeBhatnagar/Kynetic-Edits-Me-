@@ -1,0 +1,262 @@
+# ── Kynetic AI — Celery Workers K8s Deployment ──────────────────────────────
+#
+# Celery workers are deployed on the "workers" node group (SPOT instances)
+# to minimize cost. They tolerate the SPOT node taint.
+#
+# Queue depth-based autoscaling via KEDA (Kubernetes Event-driven Autoscaling)
+# is preferred over CPU HPA for message queue workloads.
+---
+# ─────────────────────────────────────────────────────────
+# Wallet Billing Celery Worker
+# ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallet-billing-worker
+  namespace: kynetic-production
+  labels:
+    app: wallet-billing-worker
+    role: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wallet-billing-worker
+  template:
+    metadata:
+      labels:
+        app: wallet-billing-worker
+        role: worker
+    spec:
+      # Schedule on SPOT worker nodes
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      nodeSelector:
+        role: worker
+
+      terminationGracePeriodSeconds: 120  # Allow in-flight Celery tasks to complete
+
+      containers:
+        - name: wallet-billing-worker
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/wallet-billing-service:latest
+          command:
+            - celery
+            - -A
+            - services.wallet_billing_service.celery_app.celery_app
+            - worker
+            - --loglevel=info
+            - --queues=celery
+            - --concurrency=4
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+            - secretRef:
+                name: billing-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+
+---
+# ─────────────────────────────────────────────────────────
+# Provisioning Celery Worker
+# ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provisioning-worker
+  namespace: kynetic-production
+  labels:
+    app: provisioning-worker
+    role: worker
+spec:
+  replicas: 3   # Starts higher — provisioning tasks are latency-sensitive
+  selector:
+    matchLabels:
+      app: provisioning-worker
+  template:
+    metadata:
+      labels:
+        app: provisioning-worker
+        role: worker
+    spec:
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      nodeSelector:
+        role: worker
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: provisioning-worker
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/provisioning-service:latest
+          command:
+            - celery
+            - -A
+            - services.provisioning_service.celery_app.celery_app
+            - worker
+            - --loglevel=info
+            - --queues=celery
+            - --concurrency=6
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+            - secretRef:
+                name: provisioning-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: FIRECRACKER_MOCK
+              value: "false"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+
+---
+# ─────────────────────────────────────────────────────────
+# Host Service Celery Worker
+# ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: host-service-worker
+  namespace: kynetic-production
+  labels:
+    app: host-service-worker
+    role: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: host-service-worker
+  template:
+    metadata:
+      labels:
+        app: host-service-worker
+        role: worker
+    spec:
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      nodeSelector:
+        role: worker
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: host-service-worker
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/host-service:latest
+          command:
+            - celery
+            - -A
+            - services.host_service.celery_app.celery_app
+            - worker
+            - --loglevel=info
+            - --queues=celery
+            - --concurrency=4
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+
+---
+# ─────────────────────────────────────────────────────────
+# Celery Beat — Global Scheduler
+# ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: kynetic-production
+  labels:
+    app: celery-beat
+    role: scheduler
+spec:
+  replicas: 1  # MUST always be 1 — multiple beats will duplicate schedules
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+        role: scheduler
+    spec:
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: celery-beat
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/host-service:latest
+          command:
+            - celery
+            - -A
+            - services.host_service.celery_app.celery_app
+            - beat
+            - --loglevel=info
+            - --scheduler
+            - celery.beat:PersistentScheduler
+            - --schedule
+            - /tmp/celerybeat-schedule
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
+---
+# ─────────────────────────────────────────────────────────
+# KEDA ScaledObject — Queue-depth autoscaling for Celery workers
+# Requires: KEDA operator installed in the cluster
+# https://keda.sh/docs/2.13/scalers/redis-lists/
+# ─────────────────────────────────────────────────────────
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: provisioning-worker-scaler
+  namespace: kynetic-production
+spec:
+  scaleTargetRef:
+    name: provisioning-worker
+  minReplicaCount: 2
+  maxReplicaCount: 30
+  triggers:
+    - type: redis
+      metadata:
+        address: REDIS_HOST:6379
+        listName: celery
+        listLength: "10"  # Scale up when queue depth exceeds 10 messages per replica

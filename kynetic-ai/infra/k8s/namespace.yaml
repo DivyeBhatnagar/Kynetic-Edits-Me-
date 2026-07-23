@@ -1,0 +1,59 @@
+# ── Kynetic AI — Kubernetes Namespaces ──────────────────────────────────────
+#
+# Usage:
+#   kubectl apply -f infra/k8s/namespace.yaml
+#
+# Namespaces follow the pattern: kynetic-{environment}
+# Each environment has completely isolated resources.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kynetic-staging
+  labels:
+    app.kubernetes.io/part-of: kynetic-ai
+    environment: staging
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kynetic-production
+  labels:
+    app.kubernetes.io/part-of: kynetic-ai
+    environment: production
+
+---
+# Resource quotas for staging — prevent runaway costs
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: staging-quota
+  namespace: kynetic-staging
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: "16Gi"
+    limits.cpu: "16"
+    limits.memory: "32Gi"
+    count/pods: "50"
+
+---
+# LimitRange — default pod limits to prevent uncontrolled resource usage
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: kynetic-production
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      max:
+        cpu: "4"
+        memory: "8Gi"

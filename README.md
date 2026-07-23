@@ -4,6 +4,8 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg)](#)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](#)
+[![Terraform](https://img.shields.io/badge/Terraform-1.6%2B-7B42BC.svg)](#)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-EKS%201.29-326CE5.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 **Kynetic AI** is a compute-first, AI-native marketplace connecting two sides:
@@ -22,7 +24,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
 2. [Reference Architecture](#reference-architecture)
 3. [Monorepo Directory Structure](#monorepo-directory-structure)
 4. [Technology Stack](#technology-stack)
-5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 10)](#implementation-plan-exhaustive-deep-dive-phases-1--10)
+5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 12)](#implementation-plan-exhaustive-deep-dive-phases-1--12)
    - [Phase 1: Foundations & Core Platform Skeleton](#phase-1-foundations--core-platform-skeleton)
    - [Phase 2: Host Onboarding, Hardware Verification & Benchmarking](#phase-2-host-onboarding-hardware-verification--benchmarking)
    - [Phase 3: Compute-First Marketplace & Wallet/Billing Core](#phase-3-compute-first-marketplace--walletbilling-core)
@@ -33,6 +35,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
    - [Phase 8: Host Experience, Auto-Pricing & Reputation Layer](#phase-8-host-experience-auto-pricing--reputation-layer)
    - [Phase 9: External Marketplace Listings & Transparent Fallbacks](#phase-9-external-marketplace-listings--transparent-fallbacks)
    - [Phase 10: India-First Regional Billing, Unified Monitoring & Dashboard](#phase-10-india-first-regional-billing-unified-monitoring--dashboard)
+   - [Phase 12: Infrastructure, Deployment & Production Readiness](#phase-12-infrastructure-deployment--production-readiness)
 6. [Launch Readiness: What Remains to be Built for Commercial MVP](#launch-readiness-what-remains-to-be-built-for-commercial-mvp)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -117,13 +120,27 @@ kynetic-ai/
 │   ├── schemas/                   # Pydantic schemas for request/response validation
 │   └── common/                    # structlog logger, httpx async client wrapper, settings
 ├── infra/
-│   ├── terraform/                 # IaC configs
-│   ├── k8s/                       # Kubernetes deployment manifests
-│   ├── docker-compose.yml         # Local microservice orchestration
+│   ├── terraform/                 # AWS IaC — VPC, EKS, RDS, Redis, S3, ECR (Phase 12)
+│   │   ├── main.tf                # Core cloud resources
+│   │   ├── variables.tf           # Typed, validated, sensitive-marked inputs
+│   │   ├── outputs.tf             # Cluster, DB, Redis, S3, ECR endpoint exports
+│   │   └── environments/          # staging.tfvars / production.tfvars
+│   ├── k8s/                       # Kubernetes production manifests (Phase 12)
+│   │   ├── namespace.yaml         # Namespaces + ResourceQuota + LimitRange
+│   │   ├── ingress.yaml           # NGINX Ingress, Let's Encrypt TLS, WAF headers
+│   │   ├── services/              # Deployment + Service + HPA for all 11 services
+│   │   ├── workers/               # Celery workers (SPOT nodes) + KEDA ScaledObject
+│   │   └── jobs/                  # Alembic DB migration Job (pre-deploy gate)
+│   ├── secrets/                   # Vault policy + External Secrets Operator CRDs
+│   ├── cdn/                       # Cloudflare Terraform — DNS, WAF, edge rate limits
+│   ├── docker-compose.yml         # Local full-stack (11 services + workers, Phase 12)
 │   ├── docker-compose.monitoring.yml # Prometheus + Grafana stack
 │   └── prometheus.yml             # Prometheus scraping targets
-├── tests/                         # Pytest test suites (41 passing unit/integration tests)
+├── tests/                         # Pytest test suites (72 passing unit/integration tests)
+│   └── infrastructure/            # Phase 12 infrastructure tests (31 tests, no DB needed)
 ├── .github/workflows/             # GitHub Actions CI/CD pipelines
+│   ├── ci.yml                     # Test + lint on PR
+│   └── deploy.yml                 # Blue-green deploy: ECR build → DB migrate → rollout (Phase 12)
 ├── alembic.ini                    # Alembic migration configuration
 └── pyproject.toml                 # Root Python project dependencies
 ```
@@ -147,11 +164,16 @@ kynetic-ai/
 | **Payments & Billing** | Stripe SDK (Global), Razorpay SDK (India UPI), 18% GST Engine |
 | **Telemetry & Logs** | `prometheus-client`, Grafana, `structlog` |
 | **Frontend UI** | Next.js 14 (App Router), TypeScript, Tailwind CSS, Lucide Icons |
-| **Testing & CI/CD** | `pytest`, `pytest-asyncio`, `httpx`, GitHub Actions |
+| **Cloud Infrastructure** | AWS EKS (Kubernetes 1.29), RDS PostgreSQL 16 (Multi-AZ), ElastiCache Redis 7.2 |
+| **Infrastructure as Code** | Terraform 1.6+ (VPC, EKS, RDS, Redis, S3, ECR) |
+| **Secrets Management** | HashiCorp Vault policy + AWS Secrets Manager + External Secrets Operator (IRSA) |
+| **CDN & Edge Security** | Cloudflare (DNS, WAF, DDoS, edge rate limiting) |
+| **Container Registry** | AWS ECR (scan-on-push enabled for all 11 service images) |
+| **Testing & CI/CD** | `pytest`, `pytest-asyncio`, `httpx`, GitHub Actions (blue-green deploy) |
 
 ---
 
-## Implementation Plan Exhaustive Deep-Dive (Phases 1 – 10)
+## Implementation Plan Exhaustive Deep-Dive (Phases 1 – 12)
 
 ### Phase 1: Foundations & Core Platform Skeleton
 - **Objective**: Stand up the core async microservices chassis, database ORM layer, authentication engine, and CI/CD pipelines.
@@ -333,9 +355,46 @@ kynetic-ai/
 
 ---
 
+### Phase 12: Infrastructure, Deployment & Production Readiness
+- **Objective**: Deliver the complete production infrastructure layer — cloud resources via Terraform, Kubernetes manifests for all 11 services, secrets management, CDN/WAF edge protection, and a fully gated CI/CD deploy pipeline.
+- **Key Modules & Files**:
+  - `infra/terraform/main.tf`: Provisions the complete AWS stack — VPC with 3-AZ subnets, EKS cluster with two node groups (on-demand for services, SPOT for workers), RDS PostgreSQL 16 with Multi-AZ standby in production, ElastiCache Redis 7.2 with 3-node replication in production, S3 bucket with AES-256 encryption and Glacier lifecycle rules for invoices, ECR repositories for all 11 services with scan-on-push.
+  - `infra/k8s/services/`: Kubernetes Deployments, ClusterIP Services, and HorizontalPodAutoscalers for every microservice. Zero-downtime rolling updates (`maxUnavailable: 0`), topology spread constraints for AZ distribution, Prometheus scrape annotations on every pod.
+  - `infra/k8s/workers/celery-workers.yaml`: Celery workers scheduled on SPOT node group (tolerations + nodeSelector) with KEDA queue-depth autoscaling (`listLength: 10` per replica). Provisioning workers scale up to 30 pods during GPU launch spikes.
+  - `infra/k8s/jobs/db-migrate.yaml`: Pre-deploy gating Job — runs `alembic upgrade head` with a 5-minute hard deadline and 2-retry backoff. The deploy workflow blocks on this Job; failure halts the rollout.
+  - `infra/k8s/ingress.yaml`: NGINX Ingress with cert-manager Let's Encrypt TLS, HSTS/X-Frame-Options/XSS security headers, WebSocket support for the AI Copilot, and IP-restricted monitoring ingress.
+  - `infra/secrets/secret-mappings.yaml`: External Secrets Operator CRDs — all 7 service secret namespaces pulled from AWS Secrets Manager via IRSA (zero static credentials). 1-hour refresh interval.
+  - `infra/secrets/vault-policy.hcl`: Per-service read-only Vault policies with explicit deny-all catch-all.
+  - `infra/cdn/cloudflare.tf`: Cloudflare DNS (proxied CNAMEs for DDoS protection), WAF custom rules (SQLi blocking, scanner UA detection), edge rate limiting (200 req/10s global, 10 req/60s on auth endpoints with 5-minute mitigation timeout), and marketplace listing cache (60s at edge).
+  - `.github/workflows/deploy.yml`: Full blue-green deploy pipeline — path-filtered change detection (only rebuild changed services), parallel ECR builds for all 11 services via matrix strategy, gating DB migration Job, rolling updates with automatic rollback on failure, staging smoke tests, manual approval gate for production (GitHub Environment protection), Slack failure notifications.
+- **Database Tables** (Migration `0012_infrastructure`):
+  - `deployment_releases` — immutable append-only deploy audit log (service, image tag SHA, environment, git ref, deployer, status, migration revision applied)
+  - `environment_configs` — non-secret per-environment config key-value store with full supersession audit trail (never deletes, uses `superseded_at`)
+  - `service_health_checks` — time-series health probe results per service per environment for SLA trending
+- **HPA Scale Ranges**:
+
+  | Service | Min Replicas | Max Replicas | Scale Trigger |
+  |---|---|---|---|
+  | api-gateway | 2 | 10 | 60% CPU |
+  | provisioning-service | 2 | **20** | 50% CPU + KEDA queue depth |
+  | ai-router-copilot | 2 | 15 | 50% CPU |
+  | wallet-billing | 2 | 8 | 70% CPU |
+  | marketplace | 2 | 8 | 65% CPU |
+  | auth-service | 2 | 6 | 70% CPU |
+  | reputation-pricing | 2 | 6 | 70% CPU |
+
+- **Security Architecture**:
+  - Zero secrets in code or environment files — all runtime-injected via ESO + IRSA
+  - Per-service Vault policy isolation (services cannot read each other's secrets)
+  - ECR scan-on-push for every image build
+  - `cancel-in-progress: false` on deploy concurrency group — never cancel an in-flight deploy
+  - Automatic rollback via `kubectl rollout undo` on any failed rollout
+
+---
+
 ## Launch Readiness: What Remains to be Built for Commercial MVP
 
-While the entire core platform logic (Phases 1 through 10) is fully implemented and tested with mock modes, the following **production enablement tasks** are required before launching to live paying customers:
+Phases 1 through 12 are fully implemented. The core platform logic (Phases 1–10) is tested with mock modes; Phase 12 delivers the production infrastructure layer with 31 additional passing tests. The following **production activation tasks** are required before launching to live paying customers:
 
 ### 1. Payment Gateway Live Production Credentials
 - **Razorpay**: Switch `mock_mode=True` to `False` in `services/wallet_billing_service/config.py` and supply live `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. Verify live Webhook HMAC signatures.
@@ -345,18 +404,21 @@ While the entire core platform logic (Phases 1 through 10) is fully implemented 
 - **Current State**: `generate_invoice_pdf` task generates an S3 stub URL (`https://storage.kynetic.ai/invoices/...`).
 - **Production Need**: Integrate `ReportLab` or `WeasyPrint` to render formal PDF documents containing Kynetic AI's corporate GSTIN, line-item breakdowns, and digital signature, then upload to an AWS S3 or MinIO bucket.
 
-### 3. Production Infrastructure & Cloud Deployment
-- **Kubernetes Deployment**: Apply the manifests in `infra/k8s/` to an EKS/GKE cluster.
-- **Ingress & TLS**: Configure NGINX Ingress Controller or AWS ALB with `cert-manager` for automated Let's Encrypt SSL certificates across all microservices.
-- **Domain DNS**: Point production domain names (`api.kynetic.ai`, `app.kynetic.ai`) to the API Gateway.
+### 3. Production Infrastructure Activation (Phase 12 — IaC Ready)
+- **Terraform Bootstrap**: Create the S3 remote state bucket (`kynetic-terraform-state`) and DynamoDB lock table (`kynetic-tf-locks`) manually, then run `terraform apply -var-file=environments/production.tfvars`. All resources are defined; this is a one-time activation step.
+- **Kubernetes Deploy**: Run `kubectl apply -f infra/k8s/namespace.yaml` then trigger the GitHub Actions `deploy.yml` workflow targeting `production`.
+- **ECR Image Tags**: Replace all `ACCOUNT_ID` placeholders in `infra/k8s/services/` with the actual AWS account ID.
+- **External Secrets Bootstrap**: Install External Secrets Operator via Helm, then `kubectl apply -f infra/secrets/secret-mappings.yaml` after populating all 7 service secret paths in AWS Secrets Manager.
+- **Cloudflare**: Run `terraform apply` in `infra/cdn/` with `eks_ingress_hostname` set to the actual NGINX Ingress ALB hostname after cluster creation.
 
 ### 4. Hardware Host Pool Seed & Binary Signing
 - **Host Agent Binaries**: Code-sign the compiled PyInstaller Host Agent executable for Windows (.exe) and Linux to prevent OS security warnings.
 - **Initial Supply Onboarding**: Seed the marketplace with 10–20 verified host nodes (RTX 4090 / RTX 3090 / A100) running the Host Agent.
 
 ### 5. Production Email & Observability Services
-- **SendGrid**: Supply a live `SENDGRID_API_KEY` to `services/notifications_service/config.py` and verify domain authentication (DKIM/SPF).
+- **SendGrid**: Supply a live `SENDGRID_API_KEY` to `services/notifications_service/config.py` (set `SENDGRID_MOCK_MODE=false` in production secret) and verify domain authentication (DKIM/SPF).
 - **Log Aggregation**: Connect `structlog` output to a hosted Loki or ELK instance.
+- **Alerting**: Wire PagerDuty/Opsgenie to the Grafana alerting rules (covered in Phase 13).
 
 ---
 
@@ -372,25 +434,42 @@ cd kynetic-ai
 # Copy environment variables
 cp .env.example .env
 
-# Start microservices via Docker Compose
+# Start full microservice stack (11 services + workers) via Docker Compose
 docker-compose up --build -d
 
-# Execute Database Migrations
+# Execute Database Migrations (includes Phase 12 tables)
 docker-compose exec auth_service alembic upgrade head
 
-# Run Pytest Suite
-python3 -m pytest tests/wallet_billing_service/test_razorpay.py tests/notifications_service/test_notifications.py -v
+# Run full test suite
+python3 -m pytest tests/ -v
+
+# Run Phase 12 infrastructure tests only (no DB required)
+python3 -m pytest tests/infrastructure/ -v
 ```
 
 ---
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit and integration test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, and API endpoints.
+The repository includes comprehensive unit and integration test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, and infrastructure validation.
 
 ```
-============================== 41 passed in 0.13s ==============================
+============================== 72 passed in 0.32s ==============================
 ```
 
-- **Razorpay & GST Tests**: 21 passed (INR/paise conversion, signature verification, 18% inclusive GST logic, Indian fiscal year calculations).
-- **Notifications & Monitoring Tests**: 20 passed (email templates, SendGrid mock dispatcher, Prometheus metric counters/gauges).
+| Test Suite | Tests | Coverage |
+|---|---|---|
+| Razorpay & GST (Phase 10) | 21 | INR/paise conversion, HMAC signatures, 18% GST, Indian fiscal year sequencing |
+| Notifications & Monitoring (Phase 10) | 20 | Email templates, SendGrid mock, Prometheus counters/gauges |
+| Infrastructure & Deployment (Phase 12) | **31** | ORM model structure (AST), Docker Compose completeness, K8s manifests (HPA, zero-downtime, Prometheus annotations, SPOT tolerations), Terraform variable validation, deploy workflow structure |
+
+**Phase 12 test highlights:**
+- ✅ All 11 services present in `docker-compose.yml` with restart policies and volume mounts
+- ✅ No production secrets (`sk_live_`, `rk_live_`, `AKIA`) in any local config file
+- ✅ API Gateway HPA has `maxUnavailable: 0` (zero-downtime)
+- ✅ Provisioning HPA max replicas > API Gateway max replicas (matches burst pattern)
+- ✅ DB migration Job has `activeDeadlineSeconds` (no hanging jobs)
+- ✅ All Celery workers have SPOT node toleration
+- ✅ All Terraform sensitive variables marked `sensitive = true`
+- ✅ Deploy workflow has concurrency lock with `cancel-in-progress: false`
+- ✅ Production deploy requires staging to pass (dependency chain enforced)

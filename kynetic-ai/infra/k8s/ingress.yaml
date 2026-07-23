@@ -1,0 +1,128 @@
+# ── Kynetic AI — Ingress (NGINX + cert-manager TLS) ─────────────────────────
+#
+# Prerequisites in cluster:
+#   - NGINX Ingress Controller (ingress-nginx)
+#   - cert-manager with ClusterIssuer "letsencrypt-production"
+#
+# Install:
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
+#
+#   helm repo add jetstack https://charts.jetstack.io
+#   helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace \
+#     --set installCRDs=true
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@kynetic.ai
+    privateKeySecretRef:
+      name: letsencrypt-production-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ops@kynetic.ai
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# Main API Ingress — api.kynetic.ai
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kynetic-api-ingress
+  namespace: kynetic-production
+  annotations:
+    # TLS
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+
+    # NGINX settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+
+    # WebSocket support (required for AI Copilot)
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+
+    # Security headers
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,500,502,503"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "DENY" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Rate limiting (coarse-grain; fine-grain is in the API Gateway itself)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.kynetic.ai
+      secretName: kynetic-api-tls
+
+  rules:
+    - host: api.kynetic.ai
+      http:
+        paths:
+          # API Gateway handles all routing internally
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 80
+
+---
+# Monitoring Ingress — metrics.kynetic.ai (internal only, behind IP allowlist)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kynetic-monitoring-ingress
+  namespace: kynetic-production
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+    # Restrict to internal office/VPN IPs only
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - metrics.kynetic.ai
+      secretName: kynetic-metrics-tls
+  rules:
+    - host: metrics.kynetic.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-service
+                port:
+                  number: 80

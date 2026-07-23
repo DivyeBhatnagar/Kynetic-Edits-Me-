@@ -1,0 +1,76 @@
+# ── Kynetic AI — Alembic DB Migration Kubernetes Job ────────────────────────
+#
+# This Job MUST complete successfully before any service Deployment is rolled
+# out. The deploy workflow enforces this ordering.
+#
+# Strategy:
+# 1. Job runs `alembic upgrade head`
+# 2. If it fails (non-zero exit), the deploy workflow stops and rolls back
+# 3. Jobs are named with the Git commit SHA to prevent re-running on K8s restarts
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Name is set dynamically by the deploy workflow using the Git SHA:
+  # kubectl apply -f with a kustomize patch or helm value
+  name: db-migrate-PLACEHOLDER_GIT_SHA
+  namespace: kynetic-production
+  labels:
+    app: db-migrate
+    phase: pre-deploy
+  annotations:
+    # Auto-delete the job after 1 hour to keep the namespace clean
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  # Retry up to 2 times on failure (transient DB connection issues)
+  backoffLimit: 2
+
+  # Hard deadline: 5 minutes max
+  activeDeadlineSeconds: 300
+
+  template:
+    metadata:
+      labels:
+        app: db-migrate
+    spec:
+      restartPolicy: OnFailure
+
+      # Run on regular service nodes (not SPOT) — needs reliability
+      tolerations: []
+
+      containers:
+        - name: alembic-migrate
+          image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/kynetic/auth-service:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "=== Kynetic DB Migration Job ==="
+              echo "Target: $DATABASE_URL (host only)"
+              echo "Running: alembic upgrade head"
+              alembic upgrade head
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 0 ]; then
+                echo "=== Migration completed successfully ==="
+                alembic current
+              else
+                echo "=== Migration FAILED with exit code $EXIT_CODE ==="
+                exit $EXIT_CODE
+              fi
+
+          envFrom:
+            - secretRef:
+                name: kynetic-shared-secrets
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

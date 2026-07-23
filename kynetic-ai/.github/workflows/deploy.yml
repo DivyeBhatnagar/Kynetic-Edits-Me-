@@ -1,0 +1,419 @@
+# ── Kynetic AI — Blue-Green Deploy Workflow ──────────────────────────────────
+#
+# Trigger: push to main (→ staging) or manual workflow_dispatch with env=production
+#
+# Flow:
+#   1. Build Docker images for all changed services
+#   2. Push tagged images to ECR
+#   3. Run DB migration Job in target namespace (must succeed before rollout)
+#   4. Helm upgrade each service deployment (rolling update)
+#   5. Wait for rollout to complete + run smoke tests
+#   6. Notify on failure/success
+#
+# Required secrets (GitHub Actions Secrets):
+#   AWS_ACCOUNT_ID, AWS_REGION, AWS_ROLE_ARN (OIDC role for GH Actions)
+#   KUBE_CONFIG_STAGING, KUBE_CONFIG_PRODUCTION
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      force_rebuild:
+        description: "Force rebuild all images even without code changes"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false  # Never cancel an in-progress deploy
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  SERVICES: |
+    api-gateway
+    auth-service
+    marketplace-service
+    wallet-billing-service
+    provisioning-service
+    ai-router-copilot-service
+    reputation-pricing-service
+    security-service
+    host-service
+    notifications-service
+    monitoring-service
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Determine which services changed (skip unchanged builds for speed)
+  # ─────────────────────────────────────────────────────────────────────────
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      api_gateway: ${{ steps.changes.outputs.api_gateway }}
+      auth_service: ${{ steps.changes.outputs.auth_service }}
+      marketplace_service: ${{ steps.changes.outputs.marketplace_service }}
+      wallet_billing_service: ${{ steps.changes.outputs.wallet_billing_service }}
+      provisioning_service: ${{ steps.changes.outputs.provisioning_service }}
+      ai_router_service: ${{ steps.changes.outputs.ai_router_service }}
+      all_services: ${{ steps.changes.outputs.all_services }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need parent commit to compare
+
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            api_gateway:
+              - 'services/api_gateway/**'
+              - 'libs/**'
+            auth_service:
+              - 'services/auth_service/**'
+              - 'libs/**'
+            marketplace_service:
+              - 'services/marketplace_service/**'
+              - 'libs/**'
+            wallet_billing_service:
+              - 'services/wallet_billing_service/**'
+              - 'libs/**'
+            provisioning_service:
+              - 'services/provisioning_service/**'
+              - 'libs/**'
+            ai_router_service:
+              - 'services/ai_router_copilot_service/**'
+              - 'libs/**'
+            all_services:
+              - 'libs/**'
+              - 'pyproject.toml'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Build & Push Docker Images to ECR
+  # ─────────────────────────────────────────────────────────────────────────
+  build-push:
+    name: Build & Push — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: services/api_gateway/Dockerfile
+          - service: auth-service
+            dockerfile: services/auth_service/Dockerfile
+          - service: marketplace-service
+            dockerfile: services/marketplace_service/Dockerfile
+          - service: wallet-billing-service
+            dockerfile: services/wallet_billing_service/Dockerfile
+          - service: provisioning-service
+            dockerfile: services/provisioning_service/Dockerfile
+          - service: ai-router-copilot-service
+            dockerfile: services/ai_router_copilot_service/Dockerfile
+          - service: reputation-pricing-service
+            dockerfile: services/reputation_pricing_service/Dockerfile
+          - service: security-service
+            dockerfile: services/security_service/Dockerfile
+          - service: host-service
+            dockerfile: services/host_service/Dockerfile
+          - service: notifications-service
+            dockerfile: services/notifications_service/Dockerfile
+          - service: monitoring-service
+            dockerfile: services/monitoring_service/Dockerfile
+
+    permissions:
+      id-token: write   # OIDC token for AWS role assumption
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | head -c 8)
+          echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_ENV
+          echo "ECR_REPO=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/kynetic/${{ matrix.service }}" >> $GITHUB_ENV
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REPO }}:latest
+          cache-from: type=registry,ref=${{ env.ECR_REPO }}:latest
+          cache-to: type=inline
+
+      - name: Run ECR image scan
+        run: |
+          aws ecr start-image-scan \
+            --repository-name "kynetic/${{ matrix.service }}" \
+            --image-id imageTag=${{ env.IMAGE_TAG }}
+          echo "Image scan initiated — check ECR console for results"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Deploy to Staging
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-push
+    environment:
+      name: staging
+      url: https://api-staging.kynetic.ai/health
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig (Staging)
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=$(echo '${{ github.sha }}' | head -c 8)" >> $GITHUB_ENV
+
+      - name: Run DB migration (GATING STEP)
+        run: |
+          # Patch the migration Job template with current SHA and apply
+          sed "s/PLACEHOLDER_GIT_SHA/${{ env.IMAGE_TAG }}/g" \
+            infra/k8s/jobs/db-migrate.yaml | kubectl apply -n kynetic-staging -f -
+
+          echo "Waiting for migration Job to complete..."
+          kubectl wait job/db-migrate-${{ env.IMAGE_TAG }} \
+            --for=condition=complete \
+            --timeout=300s \
+            -n kynetic-staging
+
+          if [ $? -ne 0 ]; then
+            echo "❌ DB migration FAILED — stopping deploy"
+            kubectl logs job/db-migrate-${{ env.IMAGE_TAG }} -n kynetic-staging
+            exit 1
+          fi
+          echo "✅ DB migration completed successfully"
+
+      - name: Update service images
+        run: |
+          SERVICES=(
+            "api-gateway"
+            "auth-service"
+            "marketplace-service"
+            "wallet-billing-service"
+            "provisioning-service"
+            "ai-router-copilot-service"
+            "reputation-pricing-service"
+            "security-service"
+            "host-service"
+            "notifications-service"
+            "monitoring-service"
+          )
+
+          ECR_BASE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/kynetic"
+
+          for SERVICE in "${SERVICES[@]}"; do
+            DEPLOY_NAME=$(echo $SERVICE | tr '-' '-')
+            echo "Updating $SERVICE image to ${{ env.IMAGE_TAG }}"
+            kubectl set image deployment/$DEPLOY_NAME \
+              $DEPLOY_NAME="${ECR_BASE}/${SERVICE}:${{ env.IMAGE_TAG }}" \
+              -n kynetic-staging
+          done
+
+      - name: Wait for all rollouts to complete
+        run: |
+          SERVICES=(
+            "api-gateway" "auth-service" "marketplace-service"
+            "wallet-billing-service" "provisioning-service"
+            "ai-router-copilot-service" "reputation-pricing-service"
+            "security-service" "host-service" "notifications-service"
+            "monitoring-service"
+          )
+
+          for SERVICE in "${SERVICES[@]}"; do
+            echo "Waiting for $SERVICE rollout..."
+            kubectl rollout status deployment/$SERVICE -n kynetic-staging --timeout=300s
+            if [ $? -ne 0 ]; then
+              echo "❌ Rollout failed for $SERVICE"
+              kubectl rollout undo deployment/$SERVICE -n kynetic-staging
+              exit 1
+            fi
+          done
+          echo "✅ All services rolled out successfully"
+
+      - name: Smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          sleep 10  # Brief wait for services to start accepting traffic
+
+          ENDPOINTS=(
+            "https://api-staging.kynetic.ai/health"
+            "https://api-staging.kynetic.ai/auth/health"
+          )
+
+          for ENDPOINT in "${ENDPOINTS[@]}"; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$ENDPOINT" || echo "000")
+            if [ "$STATUS" != "200" ]; then
+              echo "❌ Smoke test FAILED for $ENDPOINT (status: $STATUS)"
+              exit 1
+            fi
+            echo "✅ $ENDPOINT → $STATUS"
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4. Promote to Production (manual approval required)
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://api.kynetic.ai/health
+    # GitHub Environment protection rule: requires manual approval from team lead
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig (Production)
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=$(echo '${{ github.sha }}' | head -c 8)" >> $GITHUB_ENV
+
+      - name: Run DB migration (GATING STEP — Production)
+        run: |
+          sed "s/PLACEHOLDER_GIT_SHA/${{ env.IMAGE_TAG }}/g" \
+            infra/k8s/jobs/db-migrate.yaml | kubectl apply -n kynetic-production -f -
+
+          kubectl wait job/db-migrate-${{ env.IMAGE_TAG }} \
+            --for=condition=complete \
+            --timeout=300s \
+            -n kynetic-production
+
+          if [ $? -ne 0 ]; then
+            echo "❌ DB migration FAILED in production — stopping"
+            kubectl logs job/db-migrate-${{ env.IMAGE_TAG }} -n kynetic-production
+            exit 1
+          fi
+
+      - name: Update production service images
+        run: |
+          SERVICES=(
+            "api-gateway" "auth-service" "marketplace-service"
+            "wallet-billing-service" "provisioning-service"
+            "ai-router-copilot-service" "reputation-pricing-service"
+            "security-service" "host-service" "notifications-service"
+            "monitoring-service"
+          )
+
+          ECR_BASE="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/kynetic"
+
+          for SERVICE in "${SERVICES[@]}"; do
+            kubectl set image deployment/$SERVICE \
+              $SERVICE="${ECR_BASE}/${SERVICE}:${{ env.IMAGE_TAG }}" \
+              -n kynetic-production
+          done
+
+      - name: Wait for production rollouts
+        run: |
+          SERVICES=(
+            "api-gateway" "auth-service" "marketplace-service"
+            "wallet-billing-service" "provisioning-service"
+            "ai-router-copilot-service" "reputation-pricing-service"
+            "security-service" "host-service" "notifications-service"
+            "monitoring-service"
+          )
+
+          for SERVICE in "${SERVICES[@]}"; do
+            kubectl rollout status deployment/$SERVICE -n kynetic-production --timeout=600s
+            if [ $? -ne 0 ]; then
+              echo "❌ Production rollout failed for $SERVICE — rolling back"
+              kubectl rollout undo deployment/$SERVICE -n kynetic-production
+              exit 1
+            fi
+          done
+
+      - name: Production smoke tests
+        run: |
+          sleep 15
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "https://api.kynetic.ai/health" || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Production smoke test FAILED (status: $STATUS)"
+            exit 1
+          fi
+          echo "✅ Production deployment successful — api.kynetic.ai is live"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 5. Notify on failure
+  # ─────────────────────────────────────────────────────────────────────────
+  notify-failure:
+    name: Notify Deployment Failure
+    runs-on: ubuntu-latest
+    needs: [build-push, deploy-staging, deploy-production]
+    if: failure()
+
+    steps:
+      - name: Send Slack alert on failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ *Kynetic AI Deploy FAILED*",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Actor", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Run", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

@@ -1,15 +1,17 @@
 version: "3.9"
 
-# ── Kynetic AI — Local Development Docker Compose ─────────────────────────
-# Phase 1 + Phase 2 services:
-#   Infrastructure: PostgreSQL, Redis
-#   Services: API Gateway, Auth Service, Host Service
-#   Workers: Celery Worker, Celery Beat (periodic jobs)
+# ── Kynetic AI — Local Development Docker Compose (Phase 12 — COMPLETE STACK)
+# Infrastructure: PostgreSQL, Redis
+# Services: API Gateway, Auth, Host, Marketplace, Wallet/Billing, Provisioning,
+#           Security, AI Router/Copilot, Reputation/Pricing, Notifications, Monitoring
+# Workers: Celery workers + Beat scheduler for all services
 #
 # Usage:
-#   docker-compose up --build
+#   docker-compose up --build                     # Start full stack
+#   docker-compose up auth_service wallet_billing_service  # Start specific services
 #   docker-compose --profile migrate up migrate   # Run DB migrations
-#   docker-compose exec auth_service pytest        # Run tests
+#   docker-compose exec auth_service pytest       # Run tests
+#   docker-compose logs -f ai_router_service      # Tail logs for a service
 
 services:
 
@@ -452,6 +454,166 @@ services:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── AI Router & Copilot Service (port 8009) ─────────────────────────────
+  ai_router_service:
+    build:
+      context: .
+      dockerfile: services/ai_router_copilot_service/Dockerfile
+    command: uvicorn services.ai_router_copilot_service.main:app --host 0.0.0.0 --port 8009 --reload
+    ports:
+      - "8009:8009"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      # Set to your actual API keys locally; these are intentionally blank
+      OPENAI_API_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+    volumes:
+      - ./libs:/app/libs
+      - ./services/ai_router_copilot_service:/app/services/ai_router_copilot_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Reputation & Pricing Service (port 8010) ─────────────────────────────
+  reputation_pricing_service:
+    build:
+      context: .
+      dockerfile: services/reputation_pricing_service/Dockerfile
+    command: uvicorn services.reputation_pricing_service.main:app --host 0.0.0.0 --port 8010 --reload
+    ports:
+      - "8010:8010"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      HOST_SERVICE_URL: http://host_service:8002
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./libs:/app/libs
+      - ./services/reputation_pricing_service:/app/services/reputation_pricing_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reputation_pricing_worker:
+    build:
+      context: .
+      dockerfile: services/reputation_pricing_service/Dockerfile
+    command: >
+      celery -A services.reputation_pricing_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./libs:/app/libs
+      - ./services/reputation_pricing_service:/app/services/reputation_pricing_service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Notifications Service (port 8011) ────────────────────────────────────
+  notifications_service:
+    build:
+      context: .
+      dockerfile: services/notifications_service/Dockerfile
+    command: uvicorn services.notifications_service.main:app --host 0.0.0.0 --port 8011 --reload
+    ports:
+      - "8011:8011"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      # Keep mock mode enabled in dev — set to false + real key in production
+      SENDGRID_MOCK_MODE: "true"
+      SENDGRID_API_KEY: ""
+      FROM_EMAIL: dev-noreply@kynetic.ai
+    volumes:
+      - ./libs:/app/libs
+      - ./services/notifications_service:/app/services/notifications_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifications_worker:
+    build:
+      context: .
+      dockerfile: services/notifications_service/Dockerfile
+    command: >
+      celery -A services.notifications_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SENDGRID_MOCK_MODE: "true"
+      SENDGRID_API_KEY: ""
+      FROM_EMAIL: dev-noreply@kynetic.ai
+    volumes:
+      - ./libs:/app/libs
+      - ./services/notifications_service:/app/services/notifications_service
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Monitoring Service (port 8012) ────────────────────────────────────────
+  monitoring_service:
+    build:
+      context: .
+      dockerfile: services/monitoring_service/Dockerfile
+    command: uvicorn services.monitoring_service.main:app --host 0.0.0.0 --port 8012 --reload
+    ports:
+      - "8012:8012"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+    volumes:
+      - ./libs:/app/libs
+      - ./services/monitoring_service:/app/services/monitoring_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

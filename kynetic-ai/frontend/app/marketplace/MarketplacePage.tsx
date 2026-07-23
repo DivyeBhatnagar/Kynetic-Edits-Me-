@@ -464,14 +464,90 @@ export default function MarketplacePage() {
           )}
 
           {!loading && !error && result && result.items.length === 0 && (
-            <div style={{ textAlign: "center", padding: "80px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
-              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, marginBottom: 8 }}>
-                No listings found
+            <div style={{ textAlign: "center", padding: "60px 20px", maxWidth: 600, margin: "0 auto" }}>
+              <div style={{ fontSize: 54, marginBottom: 20 }}>🔍</div>
+              <h3
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  marginBottom: 8,
+                }}
+              >
+                {params.gpu_model
+                  ? `No "${params.gpu_model}" currently available.`
+                  : "No listings currently available."}
               </h3>
-              <p style={{ color: "var(--text-secondary)" }}>
-                Try adjusting your filters or clearing the search.
+              <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 32 }}>
+                We couldn't find any matching active compute nodes in Kynetic's local supply network.
               </p>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: 16,
+                  padding: "24px 30px",
+                  backdropFilter: "blur(12px)",
+                  textAlign: "left",
+                }}
+              >
+                <h4
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "hsl(258, 90%, 76%)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 16,
+                  }}
+                >
+                  Recommended Alternatives
+                </h4>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {[
+                    { name: "RunPod", url: "https://www.runpod.io/" },
+                    { name: "Vast.ai", url: "https://vast.ai/" },
+                    { name: "Lambda", url: "https://lambdalabs.com/" },
+                    { name: "Crusoe", url: "https://www.crusoecloud.com/" },
+                  ].map((provider) => (
+                    <a
+                      key={provider.name}
+                      href={provider.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 16px",
+                        background: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: 10,
+                        color: "var(--text-primary)",
+                        textDecoration: "none",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                        e.currentTarget.style.borderColor = "hsl(258, 90%, 66% / 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
+                      }}
+                    >
+                      <span>{provider.name}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>↗</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

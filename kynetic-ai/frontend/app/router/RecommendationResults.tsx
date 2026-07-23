@@ -198,13 +198,44 @@ export function RecommendationResults({
   }
 
   if (!recommendation || recommendation.results.length === 0) {
+    const requestedGpu = (recommendation?.request?.gpu_model as string) || "";
+    
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-        <p className="text-2xl">🔍</p>
-        <p className="mt-2 font-medium text-slate-300">No matching machines found</p>
-        <p className="mt-1 text-sm text-slate-500">
-          Try relaxing your budget, region, or VRAM requirements.
+      <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-8 text-center max-w-xl mx-auto">
+        <p className="text-3xl mb-3">🔍</p>
+        <p className="font-semibold text-lg text-white">
+          {requestedGpu
+            ? `No "${requestedGpu}" currently available.`
+            : "No matching machines currently available."}
         </p>
+        <p className="mt-2 text-sm text-slate-400">
+          Try relaxing your budget, region, or VRAM requirements, or check one of our trusted partners below.
+        </p>
+
+        <div className="mt-6 border-t border-white/5 pt-6 text-left">
+          <h4 className="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-4">
+            Recommended Alternatives
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { name: "RunPod", url: "https://www.runpod.io/" },
+              { name: "Vast.ai", url: "https://vast.ai/" },
+              { name: "Lambda", url: "https://lambdalabs.com/" },
+              { name: "Crusoe", url: "https://www.crusoecloud.com/" },
+            ].map((provider) => (
+              <a
+                key={provider.name}
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/10 hover:border-violet-500/30"
+              >
+                <span>{provider.name}</span>
+                <span className="text-slate-500 text-xs">↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

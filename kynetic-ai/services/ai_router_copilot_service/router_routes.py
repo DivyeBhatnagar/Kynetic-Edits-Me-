@@ -86,12 +86,11 @@ async def recommend(
         )
 
         if not listings:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "No active listings found matching your filters. "
-                    "Try relaxing budget, region, or VRAM requirements."
-                ),
+            return RecommendResponse(
+                recommendation_id=uuid.uuid4(),
+                request=body.model_dump(mode="json"),
+                results=[],
+                total_candidates_evaluated=0,
             )
 
         # ── 2. Extract budget constraints ────────────────────────────────────
@@ -139,13 +138,11 @@ async def recommend(
         )
 
         if not ranked:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "No listings match your budget. "
-                    "All candidates exceed the specified ceiling. "
-                    "Try increasing the budget or switching currency."
-                ),
+            return RecommendResponse(
+                recommendation_id=uuid.uuid4(),
+                request=body.model_dump(mode="json"),
+                results=[],
+                total_candidates_evaluated=len(listings),
             )
 
         # ── 4. Persist audit record ──────────────────────────────────────────

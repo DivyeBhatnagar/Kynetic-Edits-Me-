@@ -190,6 +190,37 @@ function MessageBubble({
           </div>
         )}
 
+        {msg.recommendation && msg.recommendation.results.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 text-left">
+            <p className="text-xs font-semibold text-slate-300 mb-1">🔍 No matching machines found</p>
+            <p className="text-xs text-slate-400 mb-3">
+              We couldn't find any matching active compute nodes in Kynetic's local supply network.
+            </p>
+            <p className="text-[11px] font-semibold text-violet-400 uppercase tracking-wider mb-2">
+              Recommended Alternatives
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { name: "RunPod", url: "https://www.runpod.io/" },
+                { name: "Vast.ai", url: "https://vast.ai/" },
+                { name: "Lambda", url: "https://lambdalabs.com/" },
+                { name: "Crusoe", url: "https://www.crusoecloud.com/" },
+              ].map((provider) => (
+                <a
+                  key={provider.name}
+                  href={provider.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-white/10 hover:border-violet-500/30"
+                >
+                  <span>{provider.name}</span>
+                  <span className="text-slate-500 text-[10px]">↗</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-slate-600">
           {msg.timestamp.toLocaleTimeString([], {
             hour: "2-digit",

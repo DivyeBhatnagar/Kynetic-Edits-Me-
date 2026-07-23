@@ -658,69 +658,60 @@ Celery, scikit-learn, pandas, PostgreSQL, FastAPI, Next.js/React frontend.
 
 ---
 
-# PHASE 9 — Hybrid Compute Bursting & Multi-Cloud Orchestration
+# PHASE 9 — External Marketplace Listings & Fallbacks
 
-**Maps to source roadmap:** Phase 12 (Hybrid Compute Bursting)
-**Dependencies:** Phase 4 (Provisioning/Scheduler)
+**Maps to source roadmap:** Phase 12 (External Alternatives / Transparent Fallbacks)
+**Dependencies:** Phase 3 (Marketplace)
 **Priority:** P1
 
 ### Objective
-Guarantee a developer's job starts even when Kynetic's own network has no matching machine, by transparently bursting to AWS, Azure, GCP, RunPod, or Vast.
+Provide developers with transparent alternatives when Kynetic's marketplace or router cannot satisfy a request for specific hardware (e.g. RTX 4090). Instead of silent bursting, we show a clean fallback prompt with direct links to other cloud providers, building long-term developer trust.
 
 ### Features In Scope
-- Hybrid Compute Broker service
-- Automatic fallback in the Scheduler when no in-network match exists
-- Unified provisioning interface across native + hybrid targets
+- Marketplace UI fallback state on query miss
+- AI Router recommendation results fallback state
+- Direct links to trusted alternatives (RunPod, Vast.ai, Lambda, Crusoe) opening in new tabs
 
 ### Detailed Build Tasks
-1. **Hybrid Compute Broker** (`hybrid_broker_service`, FastAPI):
-   - Wrap **boto3** (AWS), **azure-sdk-for-python** (Azure), **google-cloud-python** (GCP), and **httpx**-based REST clients for **RunPod** and **Vast** behind one internal provisioning interface: `POST /hybrid/provision`, `POST /hybrid/terminate`, `GET /hybrid/{job_id}/status`.
-   - Each provider adapter implements a common interface (`provision(spec) -> ProviderInstance`, `terminate(instance_id)`, `status(instance_id)`) so the Scheduler doesn't need provider-specific logic.
-2. **Scheduler fallback logic** (extend `marketplace_service`/Provisioning from Phase 4):
-   - On `POST /instances`, if no in-network listing matches the requested/recommended spec (e.g., no H100 available), automatically invoke the Hybrid Compute Broker instead — **transparently to the developer** (same `instances` record, same lifecycle states, with a `source` field indicating `native` vs. `hybrid:{provider}`).
-   - Credentials/config for each cloud provider stored securely (reuse the secret-management approach from Phase 5's security hardening — never hardcoded, injected via environment/secrets store).
-3. **Unified monitoring/billing for hybrid jobs**: hybrid-provisioned instances must feed the same `meter_instance_usage` billing pipeline (Phase 4) and the same monitoring stream (formalized fully in Phase 10) as native instances — implement a telemetry adapter per provider that normalizes their native metrics into Kynetic's internal usage/monitoring format.
-4. **Kill switch extension**: extend Phase 5's kill switch to also revoke hybrid-cloud provisioned instances (call the relevant provider adapter's `terminate`).
+1. **Marketplace Search Fallback**:
+   - Update `MarketplacePage.tsx` search state. When `result.items.length === 0`, detect if `gpu_model` or general filter parameters were supplied.
+   - Render a custom card: "No [GPU Model] currently available."
+   - Display a clean section "Recommended alternatives" with clickable badges/links for RunPod, Vast.ai, Lambda, and Crusoe opening in new tabs.
+2. **AI Router Fallback**:
+   - Update `RecommendationResults.tsx` to render the same transparent alternative suggestion box when no local listings match the request criteria.
 
 ### Database Additions
-- `hybrid_jobs` (id, instance_id FK, provider[aws|azure|gcp|runpod|vast], provider_instance_id, provisioned_at, terminated_at, provider_cost_raw JSONB)
+None (purely frontend presentation tier).
 
-### API Surface (v1 additions)
-```
-POST   /hybrid/provision      (internal, called by Scheduler on local-supply miss)
-POST   /hybrid/terminate      (internal)
-GET    /hybrid/{job_id}/status
-```
+### API Surface
+None.
 
 ### Security Controls to Implement This Phase
-- Secure credential storage for all cloud provider API keys/secrets (never in code/config committed to the repo — use a secrets manager pattern)
-- Kill switch (Phase 5) extended to cover hybrid-provisioned instances (explicit launch-checklist requirement)
+- Secure link tags (use `rel="noopener noreferrer"` to prevent reverse tab-nabbing).
 
 ### Tech Stack Used
-FastAPI, boto3, azure-sdk-for-python, google-cloud-python, httpx, Celery, PostgreSQL.
+Next.js/React, CSS.
 
 ### Exit Criteria
-- [ ] Hybrid Compute Broker successfully bursts to at least one external provider when local supply is unavailable
-- [ ] The fallback is transparent to the developer — same instance lifecycle UX
-- [ ] Billing/usage metering works identically for hybrid and native instances
-- [ ] Kill switch revokes hybrid-cloud instances as reliably as native ones
-
----
+- [ ] Searching for a non-existent GPU model in the marketplace displays the specific "No {GPU} currently available" message.
+- [ ] Recommended alternatives (RunPod, Vast.ai, Lambda, Crusoe) are listed clearly.
+- [ ] Clickable links open target provider sites in a new browser tab with correct security attributes.
+- [ ] No-results view in Router results displays the identical alternative recommendation layout.
 
 # PHASE 10 — India-First Billing, Unified Monitoring & Launch Readiness
 
 **Maps to source roadmap:** Phase 13 (India-First Billing & Support) + Phase 14 (Monitoring, Dashboards & Notifications) + the full Launch Checklist
-**Dependencies:** Phase 3 (wallet/billing), Phase 4 (instances), Phase 9 (hybrid jobs need unified monitoring)
+**Dependencies:** Phase 3 (wallet/billing), Phase 4 (instances)
 **Priority:** P1 (P0 items from the Launch Checklist gate the actual public launch)
 
 ### Objective
-Complete the India-first regional experience, unify monitoring/notifications across native and hybrid infrastructure, and formally clear the full pre-launch checklist from the source roadmap.
+Complete the India-first regional experience, unify monitoring/notifications, and formally clear the full pre-launch checklist from the source roadmap.
 
 ### Features In Scope
 - Razorpay/UPI integration + GST invoice generation
 - INR pricing display (formalizing dual-currency work from Phase 3)
 - India-based support channel
-- Unified monitoring service (native + hybrid)
+- Unified monitoring service
 - Developer/host dashboards (final polish, building on Phase 8's host dashboard)
 - Notifications system
 - Logs (centralized)
@@ -735,12 +726,12 @@ Complete the India-first regional experience, unify monitoring/notifications acr
    - `GET /billing/invoices/{id}`.
 3. **India support channel**: dedicated support contact/ticket routing flagged for India-region accounts (can be a lightweight routing rule to a support inbox/ticketing integration — implementation detail left to actual support tooling in use, but the routing flag and endpoint must exist).
 4. **Unified Monitoring Service** (`monitoring_service`, FastAPI + prometheus-client + Grafana):
-   - Ingest metrics from both native Host Agents (Phase 2/4/5 telemetry) and hybrid-cloud jobs (Phase 9's provider telemetry adapters), unifying them into one usage/billing/monitoring stream.
+   - Ingest metrics from native Host Agents (Phase 2/4/5 telemetry), unifying them into one usage/billing/monitoring stream.
    - Instrument every service with **prometheus-client**; stand up **Grafana** dashboards for platform-wide health, per-instance resource usage, and billing throughput.
    - Centralized logging: ship **structlog** output (already configured from Phase 1) to **Loki or ELK** for searchable, cross-service log correlation.
 5. **Developer & Host Dashboards (final)**:
    - Developer dashboard: running instances, usage history, billing history, invoices.
-   - Host dashboard: finalize Phase 8's dashboard with unified native+hybrid visibility where relevant, plus notification preferences.
+   - Host dashboard: finalize Phase 8's dashboard, plus notification preferences.
 6. **Notifications system**:
    - Event-driven notifications (email at minimum; extensible to SMS/push) for: low wallet balance, instance lifecycle events (started/stopped/terminated/failed), payout confirmations, GST invoice availability.
    - Wire this to the low-balance and instance-event triggers stubbed in Phase 4.
@@ -758,7 +749,7 @@ Complete the India-first regional experience, unify monitoring/notifications acr
 - [ ] AI Resource Router returns sensible recommendations for budget- and speed-based queries
 - [ ] AI Copilot gives accurate cost/time estimates before launch
 - [ ] SSH access works for public-IP and NAT'd hosts via WireGuard relay
-- [ ] Hybrid Compute Broker successfully bursts to at least one external provider when local supply is unavailable
+- [ ] External marketplace alternative recommendations display on marketplace search miss
 - [ ] Reputation scores update correctly after job completion
 - [ ] Razorpay/UPI payments and GST invoices work end-to-end for Indian users
 - [ ] Per-second usage metering matches actual resource consumption within tolerance
@@ -768,8 +759,8 @@ Complete the India-first regional experience, unify monitoring/notifications acr
 - [ ] Rate limiting active on all public API endpoints, including AI Router/Copilot
 - [ ] Malware/image scanning active on every container and template
 - [ ] Runtime monitoring flags basic cryptomining/abuse signatures
-- [ ] Kill switch tested across native and hybrid-cloud instances
-- [ ] Audit logs capture every critical action, including hybrid bursts
+- [ ] Kill switch tested across native instances
+- [ ] Audit logs capture every critical action
 - [ ] Host payout flow tested end-to-end (Stripe Connect + Razorpay)
 - [ ] Notifications fire correctly for low balance, instance events, and payouts
 - [ ] Load-tested scheduler and AI Router under concurrent requests
@@ -806,7 +797,7 @@ Razorpay Python SDK, prometheus-client, Grafana, structlog, Loki/ELK, FastAPI, C
 ### Exit Criteria
 - [ ] Every item in the Full Launch Checklist above is verified and checked off
 - [ ] Razorpay/UPI payments and GST invoices work end-to-end
-- [ ] Unified monitoring shows native and hybrid instance data on one set of dashboards
+- [ ] Unified monitoring shows native instance data on Grafana dashboards
 - [ ] Notifications fire reliably for all defined event types
 - [ ] Platform is formally ready for public launch
 
@@ -822,7 +813,7 @@ Phase 1 (Foundations)
                         ├─▶ Phase 5 (Security Hardening)  [P0 gate]
                         ├─▶ Phase 6 (Zero-Setup Templates)
                         │        └─▶ Phase 7 (AI Router & Copilot)
-                        ├─▶ Phase 9 (Hybrid Compute Bursting)
+                        ├─▶ Phase 9 (External Marketplace Listings & Fallbacks)
                         └─▶ Phase 10 (India Billing, Monitoring, Launch)
                                ▲
                  Phase 8 (Host Experience, Auto-Pricing, Reputation) ──┘
@@ -841,14 +832,14 @@ Phase 1 (Foundations)
 | 6. Zero-Setup App Templates | Phase 7 | P0 |
 | 7. AI Resource Router & Copilot | Phases 8–9 | P1 |
 | 8. Host Experience, Auto-Pricing & Reputation | Phases 10–11 | P1 |
-| 9. Hybrid Compute Bursting | Phase 12 | P1 |
+| 9. External Marketplace Listings & Fallbacks | Phase 12 | P1 |
 | 10. India Billing, Monitoring & Launch | Phases 13–14 + Launch Checklist | P1 (checklist items are P0 gates) |
 
 ## Appendix C — What's Explicitly Out of Scope for This MVP
 
 Per the source roadmap, the following remain excluded from this build and are not covered in the 10 phases above:
 - Enterprise SSO/SCIM
-- Multi-region orchestration beyond hybrid bursting
+- Multi-region orchestration beyond external alternative recommendations
 - Compute futures/derivatives
 - Full confidential computing (hardware-enforced memory encryption / TPM-backed remote attestation)
 - Custom enterprise clusters

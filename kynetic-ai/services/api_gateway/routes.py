@@ -552,3 +552,64 @@ async def proxy_fingerprint(
         request,
         f"{settings.security_service_url}/v1/security/fingerprint",
     )
+
+
+# ── Phase 6: Template Registry & Web UI routes ──────────────────────────────
+
+@gateway_router.api_route(
+    "/templates",
+    methods=["GET"],
+    tags=["Templates Proxy"],
+    summary="Proxy: GET /templates → provisioning_service (public)",
+)
+async def proxy_templates_list(request: Request):
+    """Public — no JWT required. Lists available one-click launch templates."""
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/templates",
+    )
+
+
+@gateway_router.api_route(
+    "/templates/{template_id}",
+    methods=["GET"],
+    tags=["Templates Proxy"],
+    summary="Proxy: GET /templates/{id} → provisioning_service (public)",
+)
+async def proxy_template_get(template_id: str, request: Request):
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/templates/{template_id}",
+    )
+
+
+@gateway_router.api_route(
+    "/templates",
+    methods=["POST"],
+    tags=["Templates Proxy"],
+    summary="Proxy: POST /templates → provisioning_service (admin-only)",
+)
+async def proxy_template_create(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Admin-only: registers a new template image and enqueues image scanning."""
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/templates",
+    )
+
+
+@gateway_router.api_route(
+    "/instances/{instance_id}/web-ui",
+    methods=["GET"],
+    tags=["Templates Proxy"],
+    summary="Proxy: GET /instances/{id}/web-ui → provisioning_service (protected)",
+)
+async def proxy_instance_web_ui(
+    instance_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    """Issues a short-lived web UI access token for a running templated instance."""
+    return await _proxy_request(
+        request,
+        f"{settings.provisioning_service_url}/v1/instances/{instance_id}/web-ui",
+    )

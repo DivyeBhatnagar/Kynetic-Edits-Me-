@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from libs.db_models.provisioning_models import InstanceStatus
+from libs.db_models.template_models import TemplateStatus
 
 
 # ── Launch ─────────────────────────────────────────────────────────────────
@@ -19,8 +20,16 @@ from libs.db_models.provisioning_models import InstanceStatus
 class LaunchRequest(BaseModel):
     """Developer selects a listing and requests an instance."""
     listing_id: uuid.UUID = Field(..., description="The listing to rent")
-    # Future: GPU count override, custom userdata script, etc.
-    # Phase 7 will add AI-router-driven fields here.
+    # Phase 6: optional one-click template launch
+    template_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Optional template ID for a zero-setup AI workload launch. "
+            "When provided, the scheduler validates hardware requirements and "
+            "configures the container from the template's base_image and "
+            "startup_command instead of a bare image."
+        ),
+    )
 
 
 class InstanceResponse(BaseModel):
@@ -29,6 +38,8 @@ class InstanceResponse(BaseModel):
     developer_id: uuid.UUID
     listing_id: uuid.UUID
     host_id: uuid.UUID
+    # Phase 6: populated when instance was launched from a template
+    template_id: uuid.UUID | None = None
     status: InstanceStatus
     hold_amount: Decimal
     hold_released: bool
@@ -116,3 +127,71 @@ class DeletionReceiptResponse(BaseModel):
     verified_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Templates (Phase 6) ────────────────────────────────────────────────────
+
+class TemplateResponse(BaseModel):
+    """Returned by GET /templates and GET /templates/{id}."""
+    id: uuid.UUID
+    name: str
+    slug: str
+    description: str
+    icon_emoji: str
+    tags: list[str]
+    base_image: str
+    required_gpu_vram_gb: int | None
+    required_ram_gb: int
+    required_vcpus: int
+    startup_command: str | None
+    default_ssh_user: str
+    exposed_web_ui_path: str | None
+    web_ui_port: int | None
+    status: TemplateStatus
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TemplateListResponse(BaseModel):
+    items: list[TemplateResponse]
+    total: int
+
+
+class CreateTemplateRequest(BaseModel):
+    """Admin-only: register a new template image."""
+    name: str = Field(..., max_length=120)
+    slug: str = Field(..., max_length=80, pattern=r"^[a-z0-9-]+$")
+    description: str = Field(..., max_length=2000)
+    base_image: str = Field(..., max_length=512)
+    icon_emoji: str = Field(default="🚀", max_length=8)
+    tags: list[str] = Field(default_factory=list)
+    required_gpu_vram_gb: int | None = None
+    required_ram_gb: int = 8
+    required_vcpus: int = 2
+    startup_command: str | None = None
+    exposed_web_ui_path: str | None = None
+    web_ui_port: int | None = None
+
+
+class WebUILinkResponse(BaseModel):
+    """
+    Returned by GET /instances/{id}/web-ui.
+
+    The `web_ui_url` is a short-lived proxy URL for the browser UI exposed
+    by the template (e.g. ComfyUI on port 8188, Stable Diffusion on 7860).
+    It routes through the existing WireGuard relay — the raw host port is
+    never directly exposed.
+    """
+    instance_id: uuid.UUID
+    template_id: uuid.UUID
+    web_ui_url: str = Field(
+        ...,
+        description="Proxy URL — include in browser. Valid until expires_at.",
+    )
+    token: str = Field(..., description="Bearer token embedded in web_ui_url")
+    expires_at: datetime
+    web_ui_port: int
+    note: str = Field(
+        default="This link expires in 1 hour. Request a new one after expiry."
+    )

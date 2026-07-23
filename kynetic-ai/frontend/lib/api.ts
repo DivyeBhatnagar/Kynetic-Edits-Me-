@@ -223,11 +223,11 @@ export interface DeletionReceipt {
 // ── Instances API ──────────────────────────────────────────────────────────
 
 export const instancesApi = {
-  launch: (token: string, listing_id: string) =>
+  launch: (token: string, listing_id: string, template_id?: string) =>
     request<Instance>("/instances", {
       method: "POST",
       token,
-      body: JSON.stringify({ listing_id }),
+      body: JSON.stringify({ listing_id, template_id }),
     }),
 
   get: (token: string, instanceId: string) =>
@@ -264,5 +264,56 @@ export const instancesApi = {
 
   getDeletionReceipt: (token: string, instanceId: string) =>
     request<DeletionReceipt>(`/instances/${instanceId}/deletion-receipt`, { token }),
+
+  /** Phase 6 — get web UI access link for a running templated instance */
+  getWebUI: (token: string, instanceId: string) =>
+    request<WebUILink>(`/instances/${instanceId}/web-ui`, { token }),
 };
 
+// ── Phase 6: Templates ─────────────────────────────────────────────────────
+
+export type TemplateStatus = "pending_scan" | "available" | "disabled";
+
+export interface Template {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon_emoji: string;
+  tags: string[];
+  base_image: string;
+  required_gpu_vram_gb: number | null;
+  required_ram_gb: number;
+  required_vcpus: number;
+  startup_command: string | null;
+  default_ssh_user: string;
+  exposed_web_ui_path: string | null;
+  web_ui_port: number | null;
+  status: TemplateStatus;
+  created_at: string;
+}
+
+export interface TemplateListResponse {
+  items: Template[];
+  total: number;
+}
+
+export interface WebUILink {
+  instance_id: string;
+  template_id: string;
+  web_ui_url: string;
+  token: string;
+  expires_at: string;
+  web_ui_port: number;
+  note: string;
+}
+
+export const templatesApi = {
+  /** Public — no auth required */
+  list: () =>
+    request<TemplateListResponse>("/templates"),
+
+  /** Public — get by UUID or slug */
+  get: (idOrSlug: string) =>
+    request<Template>(`/templates/${idOrSlug}`),
+};

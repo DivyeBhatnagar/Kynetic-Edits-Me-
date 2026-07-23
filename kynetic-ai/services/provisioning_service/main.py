@@ -8,9 +8,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from libs.common.logging import configure_logging
-from libs.common.middleware import RequestIDMiddleware
+from libs.common.middleware import CorrelationIDMiddleware
 from services.provisioning_service.config import get_settings
 from services.provisioning_service.routes import callback_router, provisioning_router
+from services.provisioning_service.template_routes import template_router
 
 configure_logging()
 log = structlog.get_logger(__name__)
@@ -24,7 +25,7 @@ app = FastAPI(
     redoc_url=None,
 )
 
-app.add_middleware(RequestIDMiddleware)
+app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if settings.environment == "development" else [],
@@ -35,6 +36,8 @@ app.add_middleware(
 
 # Public API routes (proxied through gateway)
 app.include_router(provisioning_router, prefix="/v1")
+# Phase 6: Template registry + web UI token routes
+app.include_router(template_router, prefix="/v1")
 
 # Internal-only callback route (NOT proxied through gateway)
 app.include_router(callback_router, prefix="/internal")

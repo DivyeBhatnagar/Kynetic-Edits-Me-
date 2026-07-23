@@ -111,6 +111,7 @@ async def launch_instance(
                 developer_id=developer_id,
                 auth_token=creds.credentials,
                 instance_repo=instance_repo,
+                template_id=body.template_id,
             )
     except InsufficientBalanceError as exc:
         raise HTTPException(

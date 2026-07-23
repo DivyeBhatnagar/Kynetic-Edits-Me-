@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -27,11 +28,8 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-
-class Base(DeclarativeBase):
-    pass
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from libs.db_models.database import Base
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────
@@ -84,6 +82,21 @@ class Instance(Base):
         ForeignKey("hosts.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
+    )
+
+    # ── Template (Phase 6) ─────────────────────────────────────────────────
+    # Nullable — instances launched without a template_id are raw/custom launches.
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Phase 6: template used for one-click launch (NULL = raw launch)",
+    )
+    template: Mapped["Template | None"] = relationship(
+        "Template",
+        back_populates="instances",
+        lazy="noload",
     )
 
     status: Mapped[InstanceStatus] = mapped_column(

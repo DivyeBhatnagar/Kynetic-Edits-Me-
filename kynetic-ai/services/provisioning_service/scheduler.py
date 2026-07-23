@@ -119,6 +119,7 @@ async def schedule_instance(
     developer_id: uuid.UUID,
     auth_token: str,
     instance_repo: InstanceRepository,
+    template_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
     """
     Pre-flight checks → wallet hold → create Instance → enqueue Celery task.
@@ -139,6 +140,32 @@ async def schedule_instance(
 
     price_per_second_usd = Decimal(str(listing["price_per_second_usd"]))
     host_id = uuid.UUID(listing["host_id"])
+
+    # ── 1b. Fetch + validate template hardware requirements ──────────────────
+    if template_id:
+        from services.provisioning_service.template_repository import TemplateRepository
+        template_repo = TemplateRepository(instance_repo._session)
+        template = await template_repo.get_by_id(template_id)
+        if not template:
+            raise SchedulerError(f"Template {template_id} not found", code="template_not_found")
+        
+        # Check listing hardware specs against template requirements
+        listing_vram = listing.get("gpu_vram_gb")
+        listing_ram = listing.get("ram_gb")
+        
+        if template.required_gpu_vram_gb:
+            if not listing_vram or float(listing_vram) < float(template.required_gpu_vram_gb):
+                raise SchedulerError(
+                    f"Listing has insufficient VRAM: need {template.required_gpu_vram_gb} GB, has {listing_vram or 0} GB",
+                    code="insufficient_hardware",
+                )
+        
+        if template.required_ram_gb:
+            if not listing_ram or float(listing_ram) < float(template.required_ram_gb):
+                raise SchedulerError(
+                    f"Listing has insufficient RAM: need {template.required_ram_gb} GB, has {listing_ram or 0} GB",
+                    code="insufficient_hardware",
+                )
 
     # ── 2. Calculate hold amount (1 hour of compute) ───────────────────────
     hold_seconds = int(settings.hold_hours * 3600)
@@ -173,6 +200,7 @@ async def schedule_instance(
         price_per_second_usd=price_per_second_usd,
         agent_host_url=agent_host_url,
         public_ip=public_ip,
+        template_id=template_id,
     )
 
     # ── 7. Enqueue Celery provisioning task ────────────────────────────────

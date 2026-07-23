@@ -71,6 +71,10 @@ class ProvisioningSettings(BaseSettings):
     jwt_secret_key: str = "dev_secret_change_in_production_12345"
     jwt_algorithm: str = "HS256"
 
+    # ── Templates / Web UI (Phase 6) ───────────────────────────────────────
+    # How long a web UI access token remains valid (seconds)
+    template_web_ui_token_ttl_seconds: int = 3600  # 1 hour
+
 
 @lru_cache
 def get_settings() -> ProvisioningSettings:

@@ -64,6 +64,7 @@ class InstanceRepository:
         agent_host_url: str,
         public_ip: str | None = None,
         ssh_port: int = 22,
+        template_id: uuid.UUID | None = None,
     ) -> Instance:
         instance = Instance(
             id=uuid.uuid4(),
@@ -78,6 +79,7 @@ class InstanceRepository:
             ssh_port=ssh_port,
             billed_seconds=0,
             hold_released=False,
+            template_id=template_id,
         )
         self._session.add(instance)
         await self._session.flush()

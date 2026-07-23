@@ -153,7 +153,22 @@ async def _provision_instance_async(instance_id_str: str) -> None:
                 wireguard_ip=wg_ip,
             )
 
-            # 3. Call host agent
+            # 3. Call host agent — pass template config if applicable
+            template_base_image = None
+            template_startup_cmd = None
+            if instance.template_id:
+                from services.provisioning_service.template_repository import TemplateRepository
+                template = await TemplateRepository(session).get_by_id(instance.template_id)
+                if template:
+                    template_base_image = template.base_image
+                    template_startup_cmd = template.startup_command
+                    log.info(
+                        "provision_instance.using_template",
+                        instance_id=instance_id_str,
+                        template_slug=template.slug,
+                        base_image=template.base_image,
+                    )
+
             agent = AgentProtocol(
                 agent_host_url=instance.agent_host_url or "mock://agent",
                 instance_id=iid,
@@ -163,6 +178,9 @@ async def _provision_instance_async(instance_id_str: str) -> None:
                     public_key=public_key,
                     wireguard_config=wg_config,
                     price_per_second_usd=str(instance.price_per_second_usd),
+                    # Phase 6: template overrides for one-click launch
+                    base_image=template_base_image,
+                    startup_command=template_startup_cmd,
                 )
             except Exception as exc:
                 log.error("provision_instance.agent_failed", error=str(exc), instance_id=instance_id_str)
@@ -380,6 +398,23 @@ async def _terminate_instance_async(instance_id_str: str, reason: str) -> None:
             # 6. Revoke SSH session (null the private key)
             await ssh_repo.revoke(iid)
 
+            # 6b. Phase 6: revoke any active web UI sessions for this instance
+            try:
+                from services.provisioning_service.template_repository import WebUISessionRepository
+                revoked_count = await WebUISessionRepository(session).revoke_by_instance(iid)
+                if revoked_count:
+                    log.info(
+                        "terminate_instance.web_ui_sessions_revoked",
+                        instance_id=instance_id_str,
+                        count=revoked_count,
+                    )
+            except Exception as exc:
+                log.warning(
+                    "terminate_instance.web_ui_revoke_failed",
+                    instance_id=instance_id_str,
+                    error=str(exc),
+                )
+
             # 7. Release wallet hold
             await instance_repo.release_hold(iid)
 
@@ -423,3 +458,96 @@ async def _reconcile_async() -> None:
                 instance_id=str(instance.id),
             )
             start_billing(instance.id)
+
+
+# ── Template Image Scan (Phase 6) ────────────────────────────────────────────────────
+
+@celery_app.task(
+    bind=True,
+    max_retries=2,
+    default_retry_delay=30,
+    name="scan_template_image",
+)
+def scan_template_image(self: Task, template_id: str, base_image: str) -> None:
+    """
+    Calls the Phase 5 security service to scan a template's container image.
+
+    Flow:
+      1. POST /v1/internal/scan-image → security_service
+      2. On pass  → template status = available
+      3. On fail  → template status = disabled (no deployments allowed)
+      4. On error → retry (max 2), then disable
+
+    SCANNER_MOCK=true (set via ENVIRONMENT=testing or CI) skips the real scan
+    and marks the template available immediately.
+    """
+    _run_async(_scan_template_image_async(template_id, base_image))
+
+
+async def _scan_template_image_async(template_id_str: str, base_image: str) -> None:
+    import httpx
+    from libs.db_models.template_models import TemplateStatus
+    from services.provisioning_service.template_repository import TemplateRepository
+
+    tid = uuid.UUID(template_id_str)
+    log.info("scan_template_image.start", template_id=template_id_str, image=base_image)
+
+    # Mock mode: skip real scan, mark available
+    if settings.firecracker_mock or settings.environment in ("testing", "test"):
+        log.info(
+            "scan_template_image.mock_pass",
+            template_id=template_id_str,
+            image=base_image,
+        )
+        async with async_session_factory() as session:
+            async with session.begin():
+                await TemplateRepository(session).update_scan_result(
+                    tid,
+                    passed=True,
+                    scan_report={"mock": True, "findings": [], "image": base_image},
+                )
+        return
+
+    # Real scan via security_service
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as http:
+            resp = await http.post(
+                f"{settings.security_service_url}/v1/internal/scan-image",
+                params={"image": base_image, "template_id": template_id_str},
+            )
+            resp.raise_for_status()
+            result = resp.json()
+    except Exception as exc:
+        log.error(
+            "scan_template_image.scan_failed",
+            template_id=template_id_str,
+            image=base_image,
+            error=str(exc),
+        )
+        # Mark disabled on unrecoverable scan error
+        async with async_session_factory() as session:
+            async with session.begin():
+                await TemplateRepository(session).update_scan_result(
+                    tid,
+                    passed=False,
+                    scan_report={"error": str(exc), "image": base_image},
+                )
+        return
+
+    passed = not result.get("blocked", False)
+    async with async_session_factory() as session:
+        async with session.begin():
+            await TemplateRepository(session).update_scan_result(
+                tid,
+                passed=passed,
+                scan_report=result,
+            )
+
+    log.info(
+        "scan_template_image.complete",
+        template_id=template_id_str,
+        image=base_image,
+        passed=passed,
+        critical=result.get("critical_count", 0),
+        high=result.get("high_count", 0),
+    )

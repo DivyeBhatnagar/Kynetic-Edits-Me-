@@ -20,9 +20,16 @@ from sqlalchemy.orm import DeclarativeBase
 # ---------------------------------------------------------------------------
 # Base class for all models
 # ---------------------------------------------------------------------------
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+
 class Base(DeclarativeBase):
     """Shared declarative base. All SQLAlchemy models inherit from this."""
     pass
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(element, compiler, **kw):
+    return "JSON"
 
 
 # ---------------------------------------------------------------------------
@@ -81,3 +88,7 @@ async def get_db_session() -> AsyncSession:
             raise
         finally:
             await session.close()
+
+
+get_async_session = get_db_session
+

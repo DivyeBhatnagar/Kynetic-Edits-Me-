@@ -38,6 +38,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
    - [Phase 12: Infrastructure, Deployment & Production Readiness](#phase-12-infrastructure-deployment--production-readiness)
    - [Phase 13: Observability, Alerting & Incident Response](#phase-13-observability-alerting--incident-response)
    - [Phase 14: Testing, QA & Chaos Validation](#phase-14-testing-qa--chaos-validation)
+   - [Phase 15: Admin Panel & Internal Operations Tooling](#phase-15-admin-panel--internal-operations-tooling)
 6. [Launch Readiness: What Remains to be Built for Commercial MVP](#launch-readiness-what-remains-to-be-built-for-commercial-mvp)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -103,7 +104,14 @@ Data Infrastructure:
 ```
 kynetic-ai/
 ├── apps/
-│   └── frontend/                  # Next.js 14, TypeScript, Tailwind CSS
+│   ├── frontend/                  # Next.js 14 Developer & Host public web portal
+│   └── admin_dashboard/           # Next.js 14 Internal Operations & Admin Console (Phase 15)
+│       ├── app/layout.tsx         # Operations shell & navigation drawer
+│       ├── app/page.tsx           # Real-time operational metric overview
+│       ├── app/fraud/page.tsx     # Fraud & Trust Review Queue UI
+│       ├── app/tickets/page.tsx   # Support Ticket Resolution Center UI
+│       ├── app/reconciliation/page.tsx # Financial Reconciliation Ledger Audit UI
+│       └── app/hosts/page.tsx     # Host & Hardware Moderation UI
 ├── services/
 │   ├── api_gateway/               # Reverse proxy, rate-limiting token bucket, JWT check
 │   ├── auth_service/              # User auth, passlib hashing, JWT rotation, phone OTP
@@ -149,12 +157,13 @@ kynetic-ai/
 │       ├── database-failover.md
 │       ├── payment-gateway-outage.md
 │       └── mass-host-disconnection.md
-├── tests/                         # Pytest test suites (117 passing unit/integration/security/chaos tests)
+├── tests/                         # Pytest test suites (131 passing unit/integration/security/chaos/admin tests)
 │   ├── unit/                      # Phase 14 unit tests (billing math, wallet ledger, state machine)
 │   ├── integration/               # Phase 14 end-to-end multi-step integration flow tests
 │   ├── load/                      # Phase 14 Locust & k6 load test suites (10x launch traffic)
 │   ├── security/                  # Phase 14 container isolation & JWT auth abuse tests
 │   ├── chaos/                     # Phase 14 fault-injection tests (host loss, DB drop, webhook retry)
+│   ├── admin/                     # Phase 15 admin operations & reconciliation tests (14 tests)
 │   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
 │   └── observability/             # Phase 13 observability tests (19 tests)
 ├── .github/workflows/             # GitHub Actions CI/CD pipelines
@@ -462,6 +471,28 @@ kynetic-ai/
 
 ---
 
+### Phase 15: Admin Panel & Internal Operations Tooling
+- **Objective**: Provide internal operations, support, finance, and security teams with dedicated control tooling, fraud review queues, support ticket resolution, financial reconciliation, and host moderation capabilities.
+- **Key Modules & Files**:
+  - `apps/admin_dashboard/`: Internal Next.js 14 web console operating on port `3002`:
+    - `app/layout.tsx`: Sidebar navigation shell linking Overview, Fraud Queue, Support Tickets, Financial Ledger, and Host Moderation.
+    - `app/page.tsx`: Operations metric overview (active MicroVMs, pending fraud flags, open support tickets, 24h ledger status).
+    - `app/fraud/page.tsx`: Fraud & Trust Review Queue UI for approving, rejecting, or suspending flagged accounts (surfacing high-risk device fingerprints, low reputation scores, security violations).
+    - `app/tickets/page.tsx`: Support Ticket Resolution Center UI for assigning, replying to, resolving, and escalating tickets.
+    - `app/reconciliation/page.tsx`: Financial Reconciliation View auditing USD (Stripe) and INR (Razorpay) DB wallet debits against payment provider ledgers.
+    - `app/hosts/page.tsx`: Host & Listing Moderation UI for suspending, re-verifying, or de-listing hardware nodes.
+  - `services/security_service/admin_routes.py`: Backend FastAPI admin endpoint suite:
+    - `GET /admin/fraud/queue` | `POST /admin/fraud/{id}/action`
+    - `POST /admin/tickets/{id}/reply`
+    - `GET /admin/reconciliation` (calculating USD and INR drift)
+    - `POST /admin/hosts/{id}/moderation`
+- **Database Tables** (Migration `0015_admin_operations`):
+  - `admin_users` — internal operator accounts (`email`, `role[support|finance|security|superadmin]`, `sso_subject`, `is_active`)
+  - `ticket_activity_logs` — support resolution history (`ticket_id`, `admin_id`, `action[assigned|responded|resolved|escalated]`, `note`)
+  - `fraud_review_queue` — trust review queue (`user_id`, `host_id`, `reason`, `risk_score`, `status[pending|approved|rejected|suspended]`, `reviewed_by`, `reviewed_at`)
+
+---
+
 ## Launch Readiness: What Remains to be Built for Commercial MVP
 
 Phases 1 through 12 are fully implemented. The core platform logic (Phases 1–10) is tested with mock modes; Phase 12 delivers the production infrastructure layer with 31 additional passing tests. The following **production activation tasks** are required before launching to live paying customers:
@@ -521,10 +552,10 @@ python3 -m pytest tests/infrastructure/ -v
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit, integration, load, security, and chaos test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, observability configurations, and fault-injection resilience.
+The repository includes comprehensive unit, integration, load, security, chaos, and administrative test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, observability configurations, fault-injection resilience, and admin operations.
 
 ```
-============================== 117 passed in 0.58s ==============================
+============================== 131 passed in 0.72s ==============================
 ```
 
 | Test Suite | Tests | Coverage |
@@ -533,15 +564,15 @@ The repository includes comprehensive unit, integration, load, security, and cha
 | Notifications & Monitoring (Phase 10) | 20 | Email templates, SendGrid mock, Prometheus counters/gauges |
 | Infrastructure & Deployment (Phase 12) | 31 | ORM model structure (AST), Docker Compose completeness, K8s manifests, Terraform variable validation, deploy workflow structure |
 | Observability & Alerting (Phase 13) | 19 | Grafana dashboard JSON validity, Prometheus alert rules syntax, Alertmanager routing, Loki/Promtail YAMLs, ORM models, incident runbooks |
-| Unit Tests (Phase 14) | **15** | Billing math (GST 18%, fiscal year invoice string, per-second rate), wallet ledger overdraft prevention, Fernet SSH encryption, provisioning state machine |
-| E2E Integration (Phase 14) | **1** | Full multi-step platform lifecycle (signup -> benchmark -> listing -> router -> rental -> billing -> teardown -> payout) |
-| Security Hardening (Phase 14) | **8** | Container isolation rules (non-root, read-only rootfs, cap_drop ALL, mount rules), JWT signature forgery rejection, token expiry, RBAC authorization |
-| Chaos & Resilience (Phase 14) | **3** | Host disconnection mid-job (no overcharge), DB connection drop atomic rollback, webhook duplicate idempotency |
+| Unit Tests (Phase 14) | 15 | Billing math, wallet ledger overdraft prevention, Fernet SSH encryption, provisioning state machine |
+| E2E Integration (Phase 14) | 1 | Full multi-step platform lifecycle |
+| Security Hardening (Phase 14) | 8 | Container isolation rules, JWT signature forgery rejection, token expiry, RBAC authorization |
+| Chaos & Resilience (Phase 14) | 3 | Host disconnection mid-job, DB connection drop atomic rollback, webhook duplicate idempotency |
+| Admin Operations (Phase 15) | **14** | Admin ORM models (AdminUser, TicketActivityLog, FraudReviewItem), reconciliation drift math (zero vs non-zero drift), fraud actions, Next.js admin app project structure |
 
-**Phase 14 test highlights:**
-- ✅ 100% of billing math and GST inclusive/exclusive rules verified with Decimal precision
-- ✅ Container isolation auditor catches root user, read-only rootfs violations, and `/etc/shadow` mounts
-- ✅ JWT signature forgery and expired tokens cleanly rejected
-- ✅ Host drop scenario confirms instance marked `failed` without overbilling
-- ✅ Database failure mid-debit rolls back without leaving corrupted negative/partial balances
-- ✅ Webhook duplicate delivery verified 100% idempotent
+**Phase 15 test highlights:**
+- ✅ Admin ORM models verified with proper indexes and enum constraints
+- ✅ Financial reconciliation drift auditor detects zero vs non-zero USD/INR ledger discrepancies
+- ✅ Next.js Admin Dashboard project structure verified (all 8 route components present)
+- ✅ Support ticket activity logger records admin response actions correctly
+- ✅ Fraud review queue action handler validates approved/rejected/suspended transitions

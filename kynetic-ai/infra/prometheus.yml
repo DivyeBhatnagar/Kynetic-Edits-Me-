@@ -1,5 +1,6 @@
-# Prometheus configuration — Kynetic Platform (Phase 10)
+# Prometheus configuration — Kynetic Platform (Phase 13 Observability)
 # Scrapes monitoring_service /monitoring/metrics every 15s
+# Integrates Alertmanager and Alerting Rules
 
 global:
   scrape_interval: 15s
@@ -7,6 +8,15 @@ global:
   external_labels:
     platform: kynetic
     env: production
+
+rule_files:
+  - "/etc/prometheus/alertmanager-rules/alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
 
 scrape_configs:
   - job_name: kynetic_monitoring
@@ -16,17 +26,16 @@ scrape_configs:
     metrics_path: /monitoring/metrics
     scrape_interval: 15s
 
-  # Optionally scrape each service directly if they expose /metrics
   - job_name: kynetic_api_gateway
     static_configs:
       - targets:
           - api_gateway:8000
     metrics_path: /metrics
-    scrape_interval: 30s
+    scrape_interval: 15s
 
   - job_name: kynetic_provisioning
     static_configs:
       - targets:
           - provisioning_service:8004
     metrics_path: /metrics
-    scrape_interval: 30s
+    scrape_interval: 15s

@@ -14,3 +14,4 @@ from libs.db_models.security_models import DeviceFingerprint, TrustTier, Securit
 from libs.db_models.template_models import Template, TemplateWebUISession            # noqa: F401
 from libs.db_models.billing_monitoring_models import Invoice, InvoiceSequence, Notification, NotificationPreference, SupportTicket  # noqa: F401
 from libs.db_models.infrastructure_models import DeploymentRelease, EnvironmentConfig, ServiceHealthCheck  # noqa: F401 — Phase 12
+from libs.db_models.observability_models import AlertEvent, IncidentRecord  # noqa: F401 — Phase 13

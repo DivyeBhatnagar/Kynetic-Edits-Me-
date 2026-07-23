@@ -36,6 +36,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
    - [Phase 9: External Marketplace Listings & Transparent Fallbacks](#phase-9-external-marketplace-listings--transparent-fallbacks)
    - [Phase 10: India-First Regional Billing, Unified Monitoring & Dashboard](#phase-10-india-first-regional-billing-unified-monitoring--dashboard)
    - [Phase 12: Infrastructure, Deployment & Production Readiness](#phase-12-infrastructure-deployment--production-readiness)
+   - [Phase 13: Observability, Alerting & Incident Response](#phase-13-observability-alerting--incident-response)
 6. [Launch Readiness: What Remains to be Built for Commercial MVP](#launch-readiness-what-remains-to-be-built-for-commercial-mvp)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -133,11 +134,23 @@ kynetic-ai/
 │   │   └── jobs/                  # Alembic DB migration Job (pre-deploy gate)
 │   ├── secrets/                   # Vault policy + External Secrets Operator CRDs
 │   ├── cdn/                       # Cloudflare Terraform — DNS, WAF, edge rate limits
+│   ├── observability/             # Phase 13 Observability & Alerting Stack
+│   │   ├── grafana-dashboards/    # Pre-built JSON dashboards (API, Provisioning, Billing, Host)
+│   │   ├── alertmanager-rules/    # Prometheus alert rules (alerts.yml)
+│   │   ├── alertmanager/          # Alertmanager routing config (alertmanager.yml)
+│   │   └── loki/                  # Loki & Promtail log aggregation configs
 │   ├── docker-compose.yml         # Local full-stack (11 services + workers, Phase 12)
-│   ├── docker-compose.monitoring.yml # Prometheus + Grafana stack
-│   └── prometheus.yml             # Prometheus scraping targets
-├── tests/                         # Pytest test suites (72 passing unit/integration tests)
-│   └── infrastructure/            # Phase 12 infrastructure tests (31 tests, no DB needed)
+│   ├── docker-compose.monitoring.yml # Prometheus + Alertmanager + Grafana + Loki + Promtail stack (Phase 13)
+│   └── prometheus.yml             # Prometheus scraping & Alertmanager target config
+├── docs/
+│   └── runbooks/                  # Phase 13 Operational Incident Runbooks
+│       ├── kill-switch-activation.md
+│       ├── database-failover.md
+│       ├── payment-gateway-outage.md
+│       └── mass-host-disconnection.md
+├── tests/                         # Pytest test suites (90 passing unit/integration tests)
+│   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
+│   └── observability/             # Phase 13 observability tests (19 tests)
 ├── .github/workflows/             # GitHub Actions CI/CD pipelines
 │   ├── ci.yml                     # Test + lint on PR
 │   └── deploy.yml                 # Blue-green deploy: ECR build → DB migrate → rollout (Phase 12)
@@ -392,6 +405,35 @@ kynetic-ai/
 
 ---
 
+### Phase 13: Observability, Alerting & Incident Response
+- **Objective**: Turn the monitoring stub into a complete operational nervous system with Grafana dashboards, Prometheus alert rules, Alertmanager routing, Loki/Promtail log aggregation, structlog correlation ID tracing, DB audit models, and operational incident runbooks.
+- **Key Modules & Files**:
+  - `infra/observability/grafana-dashboards/`: 4 pre-built dashboards:
+    - `api-overview.json`: API request rate by service, p50/p95/p99 latencies, 5xx error rates, response status code distribution.
+    - `provisioning-health.json`: Active running instances, launch success vs failure rates, launch duration percentiles, isolation type breakdown.
+    - `billing-financial-health.json`: Wallet top-up velocity (Razorpay vs Stripe), webhook failure counters, debit velocity rate, GST invoice generation velocity.
+    - `host-network-health.json`: Registered hosts count, host status distribution (idle/busy/offline), heartbeat drop rate, hardware registration velocity, GPU model inventory.
+  - `infra/observability/alertmanager-rules/alerts.yml`: Prometheus rules for:
+    - `ProvisioningHighFailureRate`: >2% failures over 5m (Critical)
+    - `APIHigh5xxErrorRate`: >1% 5xx errors over 5m (Critical)
+    - `WalletPaymentWebhookFailure`: webhook failures > 0 (Critical)
+    - `SecurityKillSwitchTriggered`: Kill-switch event triggered (Critical)
+    - `HostMassDisconnection`: >20% host heartbeat drop over 5m (Warning)
+    - `DatabaseConnectionPoolExhaustion`: >90% DB pool usage (Warning)
+    - `LowWalletBalanceTransactionFailures`: Low balance failure spikes (Warning)
+  - `infra/observability/alertmanager/alertmanager.yml`: Alertmanager routing config dispatching Critical alerts to PagerDuty and Slack `#kynetic-ops-critical`, Warning alerts to Slack `#kynetic-ops-alerts`.
+  - `infra/observability/loki/`: Loki log store config (`loki-config.yml`) with 30-day TSDB retention, and Promtail log collector (`promtail-config.yml`) extracting `correlation_id`, `service_name`, and `level` from container JSON logs.
+  - `docs/runbooks/`: 4 step-by-step incident runbooks:
+    - `kill-switch-activation.md`: Immediate response, investigation, containment, and restoration steps for admin kill-switch triggers.
+    - `database-failover.md`: Operational steps for RDS PostgreSQL primary failover, pool auto-reconnection, and Alembic state validation.
+    - `payment-gateway-outage.md`: Procedure for handling Stripe/Razorpay outages, webhook dead-letter replay, and ledger reconciliation.
+    - `mass-host-disconnection.md`: Troubleshooting guide for host heartbeat drops, WireGuard NAT relay issues, and instance re-scheduling.
+- **Database Tables** (Migration `0013_observability`):
+  - `alert_events` — audit log of all fired Alertmanager alerts (`alert_name`, `severity`, `service_name`, `summary`, `status`, `labels`, `fired_at`, `resolved_at`)
+  - `incident_records` — operational incident records (`title`, `severity[SEV1..SEV4]`, `status`, `lead_responder`, `summary`, `root_cause`, `resolution_notes`, `impact_started_at`, `impact_ended_at`)
+
+---
+
 ## Launch Readiness: What Remains to be Built for Commercial MVP
 
 Phases 1 through 12 are fully implemented. The core platform logic (Phases 1–10) is tested with mock modes; Phase 12 delivers the production infrastructure layer with 31 additional passing tests. The following **production activation tasks** are required before launching to live paying customers:
@@ -451,25 +493,23 @@ python3 -m pytest tests/infrastructure/ -v
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit and integration test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, and infrastructure validation.
+The repository includes comprehensive unit and integration test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, and observability configurations.
 
 ```
-============================== 72 passed in 0.32s ==============================
+============================== 90 passed in 0.44s ==============================
 ```
 
 | Test Suite | Tests | Coverage |
 |---|---|---|
 | Razorpay & GST (Phase 10) | 21 | INR/paise conversion, HMAC signatures, 18% GST, Indian fiscal year sequencing |
 | Notifications & Monitoring (Phase 10) | 20 | Email templates, SendGrid mock, Prometheus counters/gauges |
-| Infrastructure & Deployment (Phase 12) | **31** | ORM model structure (AST), Docker Compose completeness, K8s manifests (HPA, zero-downtime, Prometheus annotations, SPOT tolerations), Terraform variable validation, deploy workflow structure |
+| Infrastructure & Deployment (Phase 12) | 31 | ORM model structure (AST), Docker Compose completeness, K8s manifests, Terraform variable validation, deploy workflow structure |
+| Observability & Alerting (Phase 13) | **19** | Grafana dashboard JSON validity (all 4 dashboards), Prometheus alert rules syntax (all 7 rules), Alertmanager routing, Loki/Promtail YAMLs, ORM models (AlertEvent, IncidentRecord), incident runbook completeness (all 4 runbooks) |
 
-**Phase 12 test highlights:**
-- ✅ All 11 services present in `docker-compose.yml` with restart policies and volume mounts
-- ✅ No production secrets (`sk_live_`, `rk_live_`, `AKIA`) in any local config file
-- ✅ API Gateway HPA has `maxUnavailable: 0` (zero-downtime)
-- ✅ Provisioning HPA max replicas > API Gateway max replicas (matches burst pattern)
-- ✅ DB migration Job has `activeDeadlineSeconds` (no hanging jobs)
-- ✅ All Celery workers have SPOT node toleration
-- ✅ All Terraform sensitive variables marked `sensitive = true`
-- ✅ Deploy workflow has concurrency lock with `cancel-in-progress: false`
-- ✅ Production deploy requires staging to pass (dependency chain enforced)
+**Phase 13 test highlights:**
+- ✅ All 4 Grafana dashboards (`api-overview`, `provisioning-health`, `billing-financial-health`, `host-network-health`) valid JSON with required panel queries
+- ✅ All 7 Prometheus alert rules (`ProvisioningHighFailureRate`, `APIHigh5xxErrorRate`, `WalletPaymentWebhookFailure`, `SecurityKillSwitchTriggered`, `HostMassDisconnection`, `DatabaseConnectionPoolExhaustion`, `LowWalletBalanceTransactionFailures`) present with severity labels
+- ✅ Alertmanager config contains critical and warning routing to PagerDuty and Slack
+- ✅ Loki log retention set to 30 days with TSDB schema v13
+- ✅ Promtail extracts `correlation_id` and `service_name` from structlog JSON logs
+- ✅ All 4 incident runbooks (`kill-switch-activation`, `database-failover`, `payment-gateway-outage`, `mass-host-disconnection`) verified present with response/remediation sections

@@ -1,0 +1,112 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Active Running Instances",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "kynetic_active_instances_total",
+          "legendFormat": "Active Instances",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }
+      }
+    },
+    {
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "title": "Instance Launch Success vs Failure",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(kynetic_instance_launches_total{status=\"success\"}[5m]))",
+          "legendFormat": "Successful Launches",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(kynetic_instance_launches_total{status=\"failed\"}[5m]))",
+          "legendFormat": "Failed Launches",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "title": "Provisioning Failure Rate (%)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(kynetic_instance_launches_total{status=\"failed\"}[15m])) / sum(increase(kynetic_instance_launches_total[15m])) * 100",
+          "legendFormat": "Failure Rate %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2.0 },
+              { "color": "red", "value": 5.0 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 4,
+      "title": "Instance Launch Duration (seconds)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(kynetic_instance_launch_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95 Launch Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(kynetic_instance_launch_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50 Launch Latency",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 5,
+      "title": "Workload Isolation Type Breakdown",
+      "type": "piechart",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(kynetic_active_instances_total) by (isolation_type)",
+          "legendFormat": "{{isolation_type}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kynetic", "provisioning", "instances"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Kynetic AI — Provisioning & Instance Health",
+  "uid": "kynetic-provisioning-health"
+}

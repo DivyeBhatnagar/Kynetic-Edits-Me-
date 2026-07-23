@@ -1,0 +1,72 @@
+groups:
+  - name: kynetic_alert_rules
+    rules:
+      - alert: ProvisioningHighFailureRate
+        expr: (sum(increase(kynetic_instance_launches_total{status="failed"}[5m])) / sum(increase(kynetic_instance_launches_total[5m]))) * 100 > 2
+        for: 2m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "Instance Provisioning Failure Rate High (>2%)"
+          description: "Instance provisioning failure rate has exceeded 2% over the last 5 minutes. Current rate: {{ $value }}%"
+
+      - alert: APIHigh5xxErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 > 1
+        for: 2m
+        labels:
+          severity: critical
+          team: dev
+        annotations:
+          summary: "API 5xx Error Rate High (>1%)"
+          description: "API HTTP 5xx error rate is {{ $value }}%, exceeding the 1% threshold."
+
+      - alert: WalletPaymentWebhookFailure
+        expr: increase(kynetic_payment_webhook_failures_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: finance
+        annotations:
+          summary: "Payment Webhook Processing Failure"
+          description: "Razorpay or Stripe payment webhook failed processing. Immediate investigation required for ledger reconciliation."
+
+      - alert: SecurityKillSwitchTriggered
+        expr: increase(kynetic_kill_switch_triggers_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Emergency Kill-Switch Triggered"
+          description: "Admin emergency kill-switch was activated. Target workload or host has been halted."
+
+      - alert: HostMassDisconnection
+        expr: (increase(kynetic_host_heartbeat_timeouts_total[5m]) / kynetic_registered_hosts_total) * 100 > 20
+        for: 3m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "Mass Host Heartbeat Disconnection (>20%)"
+          description: "More than 20% of registered hosts lost heartbeat connectivity in the last 5 minutes."
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: (kynetic_db_active_connections / kynetic_db_max_connections) * 100 > 90
+        for: 1m
+        labels:
+          severity: warning
+          team: db-ops
+        annotations:
+          summary: "Database Connection Pool Near Exhaustion (>90%)"
+          description: "PostgreSQL active connections are at {{ $value }}% of maximum pool size."
+
+      - alert: LowWalletBalanceTransactionFailures
+        expr: increase(kynetic_failed_debits_low_balance_total[10m]) > 10
+        for: 3m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Spike in Low Balance Transaction Failures"
+          description: "Over 10 transactions failed due to insufficient developer wallet balance in 10 minutes."

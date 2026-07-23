@@ -1,12 +1,8 @@
-# Kynetic — Monitoring Stack (Phase 10)
-# Prometheus + Grafana for platform-wide metrics
+# Kynetic — Monitoring & Observability Stack (Phase 13)
+# Prometheus + Alertmanager + Grafana + Loki + Promtail
 #
 # Usage:
 #   docker compose -f infra/docker-compose.monitoring.yml up -d
-#
-# Prometheus scrapes GET /monitoring/metrics from the monitoring_service
-# every 15 seconds.
-# Grafana is pre-configured to read from Prometheus.
 
 version: "3.9"
 
@@ -16,6 +12,7 @@ services:
     container_name: kynetic_prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alertmanager-rules:/etc/prometheus/alertmanager-rules:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -28,12 +25,51 @@ services:
     networks:
       - kynetic_internal
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: kynetic_alertmanager
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    networks:
+      - kynetic_internal
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: kynetic_loki
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+    command: -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    networks:
+      - kynetic_internal
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: kynetic_promtail
+    volumes:
+      - ./observability/loki/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    restart: unless-stopped
+    networks:
+      - kynetic_internal
+
   grafana:
     image: grafana/grafana:10.4.2
     container_name: kynetic_grafana
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana-dashboards:/var/lib/grafana/dashboards:ro
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=kynetic_grafana_CHANGE_IN_PROD
@@ -43,6 +79,8 @@ services:
       - "3001:3000"
     depends_on:
       - prometheus
+      - alertmanager
+      - loki
     restart: unless-stopped
     networks:
       - kynetic_internal

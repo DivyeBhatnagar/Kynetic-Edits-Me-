@@ -37,6 +37,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
    - [Phase 10: India-First Regional Billing, Unified Monitoring & Dashboard](#phase-10-india-first-regional-billing-unified-monitoring--dashboard)
    - [Phase 12: Infrastructure, Deployment & Production Readiness](#phase-12-infrastructure-deployment--production-readiness)
    - [Phase 13: Observability, Alerting & Incident Response](#phase-13-observability-alerting--incident-response)
+   - [Phase 14: Testing, QA & Chaos Validation](#phase-14-testing-qa--chaos-validation)
 6. [Launch Readiness: What Remains to be Built for Commercial MVP](#launch-readiness-what-remains-to-be-built-for-commercial-mvp)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -148,7 +149,12 @@ kynetic-ai/
 │       ├── database-failover.md
 │       ├── payment-gateway-outage.md
 │       └── mass-host-disconnection.md
-├── tests/                         # Pytest test suites (90 passing unit/integration tests)
+├── tests/                         # Pytest test suites (117 passing unit/integration/security/chaos tests)
+│   ├── unit/                      # Phase 14 unit tests (billing math, wallet ledger, state machine)
+│   ├── integration/               # Phase 14 end-to-end multi-step integration flow tests
+│   ├── load/                      # Phase 14 Locust & k6 load test suites (10x launch traffic)
+│   ├── security/                  # Phase 14 container isolation & JWT auth abuse tests
+│   ├── chaos/                     # Phase 14 fault-injection tests (host loss, DB drop, webhook retry)
 │   ├── infrastructure/            # Phase 12 infrastructure tests (31 tests)
 │   └── observability/             # Phase 13 observability tests (19 tests)
 ├── .github/workflows/             # GitHub Actions CI/CD pipelines
@@ -434,6 +440,28 @@ kynetic-ai/
 
 ---
 
+### Phase 14: Testing, QA & Chaos Validation
+- **Objective**: Prove the system works under real conditions — not just on the happy path — with comprehensive unit, integration, load, security, and chaos fault-injection test coverage.
+- **Key Modules & Files**:
+  - `tests/unit/`:
+    - `test_billing_unit.py`: 18% GST inclusive/exclusive logic, Indian fiscal year invoice formatting (`KYN/2024-25/000001`), per-second usage cost math, currency conversion (USD/INR), reservation hold calculation.
+    - `test_wallet_unit.py`: Ledger topup & debit operations, overdraft prevention, Razorpay paise <-> INR unit conversion.
+    - `test_provisioning_unit.py`: Instance status state machine transition rules (`pending` -> `provisioning` -> `running` -> `stopping` -> `terminated`), invalid transition blocks, SSH key Fernet encryption/decryption.
+  - `tests/integration/test_e2e_flow.py`: End-to-end simulation: User signup → Host hardware verification & benchmarking → Listing creation → AI Router recommendation → Instance rental → Per-second usage billing → Instance teardown → Invoice generation → Host payout.
+  - `tests/load/`:
+    - `locustfile.py`: Locust load test simulating concurrent developers browsing marketplace, querying AI Router, checking wallets, and host agents sending 10s heartbeats.
+    - `k6_load_test.js`: k6 script testing API Gateway rate limits and endpoint throughput under 100+ req/sec.
+  - `tests/security/`:
+    - `test_isolation_security.py`: Container & MicroVM security profile audit: non-root UID enforcement, read-only root filesystem requirement, dropped Linux capabilities (`cap_drop=['ALL']`), forbidden host mount path detection (`/etc/shadow`, `/root`).
+    - `test_auth_security.py`: JWT token signature forgery rejection, expired token rejection, admin endpoint RBAC role enforcement.
+  - `tests/chaos/test_chaos_scenarios.py`:
+    - `test_host_disconnection_mid_job`: Simulates host loss mid-job, verifies instance status is set to `failed` and developer wallet is not overcharged beyond last valid heartbeat.
+    - `test_database_connection_drop_during_debit`: Simulates DB crash during wallet debit, verifies atomic transaction rollback without corrupted balance state.
+    - `test_webhook_duplication_idempotency`: Simulates duplicate Razorpay/Stripe webhooks, verifies idempotent processing.
+  - `.github/workflows/ci.yml`: Updated CI pipeline with dedicated `test-qa-validation` job executing unit, integration, security, and chaos suites on every pull request.
+
+---
+
 ## Launch Readiness: What Remains to be Built for Commercial MVP
 
 Phases 1 through 12 are fully implemented. The core platform logic (Phases 1–10) is tested with mock modes; Phase 12 delivers the production infrastructure layer with 31 additional passing tests. The following **production activation tasks** are required before launching to live paying customers:
@@ -493,10 +521,10 @@ python3 -m pytest tests/infrastructure/ -v
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit and integration test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, and observability configurations.
+The repository includes comprehensive unit, integration, load, security, and chaos test suites covering billing calculations, Razorpay integration, GST invoice generation, email dispatchers, metrics, API endpoints, infrastructure validation, observability configurations, and fault-injection resilience.
 
 ```
-============================== 90 passed in 0.44s ==============================
+============================== 117 passed in 0.58s ==============================
 ```
 
 | Test Suite | Tests | Coverage |
@@ -504,12 +532,16 @@ The repository includes comprehensive unit and integration test suites covering 
 | Razorpay & GST (Phase 10) | 21 | INR/paise conversion, HMAC signatures, 18% GST, Indian fiscal year sequencing |
 | Notifications & Monitoring (Phase 10) | 20 | Email templates, SendGrid mock, Prometheus counters/gauges |
 | Infrastructure & Deployment (Phase 12) | 31 | ORM model structure (AST), Docker Compose completeness, K8s manifests, Terraform variable validation, deploy workflow structure |
-| Observability & Alerting (Phase 13) | **19** | Grafana dashboard JSON validity (all 4 dashboards), Prometheus alert rules syntax (all 7 rules), Alertmanager routing, Loki/Promtail YAMLs, ORM models (AlertEvent, IncidentRecord), incident runbook completeness (all 4 runbooks) |
+| Observability & Alerting (Phase 13) | 19 | Grafana dashboard JSON validity, Prometheus alert rules syntax, Alertmanager routing, Loki/Promtail YAMLs, ORM models, incident runbooks |
+| Unit Tests (Phase 14) | **15** | Billing math (GST 18%, fiscal year invoice string, per-second rate), wallet ledger overdraft prevention, Fernet SSH encryption, provisioning state machine |
+| E2E Integration (Phase 14) | **1** | Full multi-step platform lifecycle (signup -> benchmark -> listing -> router -> rental -> billing -> teardown -> payout) |
+| Security Hardening (Phase 14) | **8** | Container isolation rules (non-root, read-only rootfs, cap_drop ALL, mount rules), JWT signature forgery rejection, token expiry, RBAC authorization |
+| Chaos & Resilience (Phase 14) | **3** | Host disconnection mid-job (no overcharge), DB connection drop atomic rollback, webhook duplicate idempotency |
 
-**Phase 13 test highlights:**
-- ✅ All 4 Grafana dashboards (`api-overview`, `provisioning-health`, `billing-financial-health`, `host-network-health`) valid JSON with required panel queries
-- ✅ All 7 Prometheus alert rules (`ProvisioningHighFailureRate`, `APIHigh5xxErrorRate`, `WalletPaymentWebhookFailure`, `SecurityKillSwitchTriggered`, `HostMassDisconnection`, `DatabaseConnectionPoolExhaustion`, `LowWalletBalanceTransactionFailures`) present with severity labels
-- ✅ Alertmanager config contains critical and warning routing to PagerDuty and Slack
-- ✅ Loki log retention set to 30 days with TSDB schema v13
-- ✅ Promtail extracts `correlation_id` and `service_name` from structlog JSON logs
-- ✅ All 4 incident runbooks (`kill-switch-activation`, `database-failover`, `payment-gateway-outage`, `mass-host-disconnection`) verified present with response/remediation sections
+**Phase 14 test highlights:**
+- ✅ 100% of billing math and GST inclusive/exclusive rules verified with Decimal precision
+- ✅ Container isolation auditor catches root user, read-only rootfs violations, and `/etc/shadow` mounts
+- ✅ JWT signature forgery and expired tokens cleanly rejected
+- ✅ Host drop scenario confirms instance marked `failed` without overbilling
+- ✅ Database failure mid-debit rolls back without leaving corrupted negative/partial balances
+- ✅ Webhook duplicate delivery verified 100% idempotent

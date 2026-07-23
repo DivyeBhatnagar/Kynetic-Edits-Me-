@@ -552,3 +552,33 @@ jobs:
           HOST_SERVICE_URL: http://localhost:8002
           WIREGUARD_RELAY_HOST: relay.kynetic.ai
           WIREGUARD_RELAY_PUBLIC_KEY: CI_PLACEHOLDER
+
+  # ── Phase 14: QA & Chaos Validation Suite ────────────────────────────────
+  test-qa-validation:
+    name: "Phase 14 — QA, Security & Chaos Suite"
+    runs-on: ubuntu-latest
+    needs: lint
+
+    defaults:
+      run:
+        working-directory: kynetic-ai
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pyyaml cryptography python-jose[cryptography]
+
+      - name: Run Phase 14 Unit, Integration, Security, Chaos tests
+        run: |
+          python -m pytest tests/unit/ tests/integration/ tests/security/ tests/chaos/ -v --tb=short
+        env:
+          PYTHONPATH: .
+          ENVIRONMENT: test

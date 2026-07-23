@@ -124,7 +124,7 @@ The user interface is built with **Next.js 14**, **TypeScript**, and **Tailwind 
 
 ```bash
 # Navigate to the frontend directory
-cd apps/frontend
+cd frontend
 
 # Install dependencies
 npm install
@@ -202,7 +202,7 @@ uvicorn services.notifications_service.main:app --reload --port 8010
 uvicorn services.monitoring_service.main:app --reload --port 8011
 
 # Terminal 6: Frontend App (Port 3000)
-cd apps/frontend && npm run dev
+cd frontend && npm run dev
 ```
 
 ---
@@ -261,7 +261,7 @@ python3 -m pytest -v --tb=short
 - **`libs/db_models/`**: Central SQLAlchemy ORM model definitions shared across microservices.
 - **`libs/schemas/`**: Shared Pydantic request/response validation models.
 - **`libs/common/`**: Shared middleware, `structlog` logging, `httpx` async clients, and settings loaders.
-- **`apps/frontend/`**: Next.js App Router application (`app/`, `components/`, `lib/api.ts`).
+- **`frontend/`**: Next.js App Router application (`app/`, `components/`, `lib/api.ts`).
 
 ---
 
@@ -317,7 +317,7 @@ alembic upgrade head
 
 ### Adding a New Frontend Component or Page
 
-1. **API Client Method**: Add the backend API call method to `apps/frontend/lib/api.ts`:
+1. **API Client Method**: Add the backend API call method to `frontend/lib/api.ts`:
 ```typescript
 export const myFeatureApi = {
   getFeature: async (id: string) => {
@@ -330,7 +330,7 @@ export const myFeatureApi = {
 };
 ```
 
-2. **UI Page**: Create a new page under `apps/frontend/app/my-feature/page.tsx`:
+2. **UI Page**: Create a new page under `frontend/app/my-feature/page.tsx`:
 ```tsx
 "use client";
 import React, { useEffect, useState } from "react";

@@ -59,7 +59,7 @@ This document provides a comprehensive reference of all environment variables us
 
 ---
 
-## 5. Frontend Applications (`apps/frontend`, `apps/admin_dashboard`)
+## 5. Frontend Application (`frontend/`)
 
 | Variable Name | Required | Default Value | Description |
 |---|---|---|---|

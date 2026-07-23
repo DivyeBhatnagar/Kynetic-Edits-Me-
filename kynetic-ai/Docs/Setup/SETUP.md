@@ -60,15 +60,11 @@ pip install pytest ruff black mypy
 
 ---
 
-## 4. Frontend Portals Setup (Next.js 14)
+## 4. Frontend Application Setup (Next.js 16)
 
 ```bash
-# Setup Public Developer & Host Web Portal
-cd apps/frontend
-npm install
-
-# Setup Internal Admin & Operations Console
-cd ../admin_dashboard
+# Setup Public Developer, Host & Admin Web Application
+cd frontend
 npm install
 ```
 

@@ -693,3 +693,56 @@ async def proxy_copilot_ws_upgrade(
         request,
         f"{settings.ai_router_copilot_service_url}/v1/copilot/ws/{session_id}",
     )
+
+
+# ---------------------------------------------------------------------------
+# Reputation & Auto-Pricing routes (Phase 8) — reputation_pricing_service
+# ---------------------------------------------------------------------------
+
+@gateway_router.api_route(
+    "/hosts/{host_id}/dashboard",
+    methods=["GET"],
+    tags=["Host Dashboard Proxy"],
+    summary="Proxy: GET /hosts/{id}/dashboard → reputation_pricing_service (protected)",
+)
+async def proxy_host_dashboard(
+    host_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    """Full host dashboard: revenue, health/temp telemetry, idle prediction, reputation, pricing suggestion."""
+    return await _proxy_request(
+        request,
+        f"{settings.reputation_pricing_service_url}/v1/hosts/{host_id}/dashboard",
+    )
+
+
+@gateway_router.api_route(
+    "/hosts/{host_id}/reputation",
+    methods=["GET"],
+    tags=["Host Dashboard Proxy"],
+    summary="Proxy: GET /hosts/{id}/reputation → reputation_pricing_service (public read)",
+)
+async def proxy_host_reputation(host_id: str, request: Request):
+    """
+    Reputation score for a host (publicly readable — enables developers to
+    inspect a host before renting).
+    """
+    return await _proxy_request(
+        request,
+        f"{settings.reputation_pricing_service_url}/v1/hosts/{host_id}/reputation",
+    )
+
+
+@gateway_router.api_route(
+    "/pricing/suggest",
+    methods=["GET"],
+    tags=["Auto-Pricing Proxy"],
+    summary="Proxy: GET /pricing/suggest → reputation_pricing_service (protected)",
+)
+async def proxy_pricing_suggest(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Get a competitive price suggestion for a listing from the auto-pricing model."""
+    return await _proxy_request(
+        request,
+        f"{settings.reputation_pricing_service_url}/v1/pricing/suggest",
+    )

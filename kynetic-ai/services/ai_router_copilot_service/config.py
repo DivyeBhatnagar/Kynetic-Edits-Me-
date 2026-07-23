@@ -50,18 +50,21 @@ class RouterCopilotSettings(BaseSettings):
     # Maximum free-text input length (chars) — input sanitization gate
     max_input_length: int = 2000
 
-    # ── Router Scoring Weights ───────────────────────────────────────────────
-    # Weights for the rule-based ranking function (must sum ≤ 1.0, remainder ignored)
-    weight_price: float = 0.40
-    weight_benchmark: float = 0.35
-    weight_availability: float = 0.25
+    # ── Router Scoring Weights ────────────────────────────────────────
+    # Phase 8: four-component weights (price, benchmark, availability, reputation).
+    # Must sum to 1.0.
+    weight_price: float = 0.35
+    weight_benchmark: float = 0.30
+    weight_availability: float = 0.20
+    weight_reputation: float = 0.15   # Phase 8 live
 
     # ── Auth (shared JWT secret with auth_service) ───────────────────────────
     jwt_secret_key: str = "dev_secret_change_in_production_12345"
     jwt_algorithm: str = "HS256"
 
-    # ── Internal Service URLs ────────────────────────────────────────────────
+    # ── Internal Service URLs ─────────────────────────────────────────
     marketplace_service_url: str = "http://marketplace_service:8003"
+    reputation_pricing_service_url: str = "http://reputation_pricing_service:8008"
 
 
 @lru_cache

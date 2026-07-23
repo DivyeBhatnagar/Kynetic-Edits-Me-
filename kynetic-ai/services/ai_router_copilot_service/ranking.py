@@ -11,23 +11,22 @@ For each active listing, compute three normalised sub-scores (0.0–1.0):
   1. price_score      — inverse of price (cheaper = higher score)
   2. benchmark_score  — normalised hardware performance from host_benchmarks
   3. availability_score — binary (host online/available = 1.0, else penalised)
+  4. reputation_score   — Phase 8 live score (or 0.5 neutral fallback)
 
 Composite score = w_price × price_score
                + w_benchmark × benchmark_score
                + w_availability × availability_score
+               + w_reputation × reputation_score   ← Phase 8 live
 
 Weights are configurable via RouterCopilotSettings and default to:
-  price=0.40, benchmark=0.35, availability=0.25
-
-The listing with the highest composite score is returned first.
+  price=0.35, benchmark=0.30, availability=0.20, reputation=0.15
 
 Phase 8 Integration
 ───────────────────
-When Phase 8 ships real reputation scores, replace the neutral stub (0.5)
-with the actual composite_score from `reputation_scores` and add a fourth
-weight component:
-  reputation_score × w_reputation
-Reduce w_price / w_benchmark proportionally so weights still sum to 1.0.
+rank_listings() now accepts a `reputation_scores` dict (host_id → float) that
+is fetched from reputation_pricing_service by the caller (router_routes.py).
+If the dict is absent or a host has no score, we fall back to 0.5 (neutral),
+so the ranking degrades gracefully for new hosts.
 """
 
 from __future__ import annotations
@@ -124,9 +123,11 @@ def rank_listings(
     goal: str | None = None,
     budget_usd: float | None = None,
     budget_inr: float | None = None,
-    weight_price: float = 0.40,
-    weight_benchmark: float = 0.35,
-    weight_availability: float = 0.25,
+    weight_price: float = 0.35,
+    weight_benchmark: float = 0.30,
+    weight_availability: float = 0.20,
+    weight_reputation: float = 0.15,   # Phase 8 — live
+    reputation_scores: dict[str, float] | None = None,  # host_id -> composite_score
     top_n: int = 10,
 ) -> list[ScoredListing]:
     """
@@ -134,23 +135,26 @@ def rank_listings(
 
     Parameters
     ──────────
-    listings        : raw listing dicts from DB query (see repository.py)
-    goal            : 'fastest' | 'cheapest' | 'balanced' | None
-    budget_usd      : hard budget ceiling in USD (optional)
-    budget_inr      : hard budget ceiling in INR (optional)
-    weight_*        : configurable scoring weights
-    top_n           : maximum number of results to return
+    listings          : raw listing dicts from DB query
+    goal              : 'fastest' | 'cheapest' | 'balanced' | None
+    budget_usd        : hard budget ceiling in USD (optional)
+    budget_inr        : hard budget ceiling in INR (optional)
+    weight_*          : configurable scoring weights (must sum to 1.0)
+    reputation_scores : Phase 8 — dict mapping host_id (str) → composite_score.
+                        Fetched from reputation_pricing_service by router_routes.py.
+                        Falls back to 0.5 (neutral) when absent.
+    top_n             : maximum number of results to return
 
-    Goal overrides weights
-    ──────────────────────
-    - 'fastest'   → weight_benchmark=0.70, weight_price=0.15, weight_availability=0.15
-    - 'cheapest'  → weight_price=0.75, weight_benchmark=0.10, weight_availability=0.15
-    - 'balanced'  → default weights
+    Goal overrides weights (four-component, Phase 8)
+    ─────────────────────────────────────────────────
+    - 'fastest'  → benchmark=0.55, price=0.15, availability=0.15, reputation=0.15
+    - 'cheapest' → price=0.65, benchmark=0.10, availability=0.15, reputation=0.10
+    - 'balanced' → default weights
     """
     if goal == "fastest":
-        weight_price, weight_benchmark, weight_availability = 0.15, 0.70, 0.15
+        weight_price, weight_benchmark, weight_availability, weight_reputation = 0.15, 0.55, 0.15, 0.15
     elif goal == "cheapest":
-        weight_price, weight_benchmark, weight_availability = 0.75, 0.10, 0.15
+        weight_price, weight_benchmark, weight_availability, weight_reputation = 0.65, 0.10, 0.15, 0.10
 
     if not listings:
         return []
@@ -191,8 +195,19 @@ def rank_listings(
         sp = round(_price_score(price_usd, min_price, max_price), 4)
         sb = round(_benchmark_score_normalised(bench_float, min_bench, max_bench), 4)
         sa = round(_availability_score(is_available), 4)
+
+        # Phase 8: live reputation score (falls back to 0.5 neutral for new hosts)
+        host_id_str = str(lst.get("host_id", ""))
+        rep_score = round(
+            (reputation_scores or {}).get(host_id_str, 0.5), 4
+        )
+
         composite = round(
-            weight_price * sp + weight_benchmark * sb + weight_availability * sa, 4
+            weight_price * sp
+            + weight_benchmark * sb
+            + weight_availability * sa
+            + weight_reputation * rep_score,
+            4,
         )
 
         est_cost_usd, est_cost_inr, est_hours = _estimated_cost_and_time(
@@ -220,7 +235,7 @@ def rank_listings(
             score_composite=composite,
             benchmark_score=bench_float,
             benchmark_type=lst.get("benchmark_type"),
-            reputation_score=0.5,  # Phase 8 will replace with real score
+            reputation_score=rep_score,  # Phase 8: live score
         )
         scored.append((composite, sl))
 

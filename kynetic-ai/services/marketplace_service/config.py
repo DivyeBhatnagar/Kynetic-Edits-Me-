@@ -16,6 +16,9 @@ class MarketplaceSettings(BaseServiceSettings):
     # Host Service URL (to verify host status at listing creation)
     host_service_url: str = "http://host_service:8002"
 
+    # Reputation & Pricing Service URL (Phase 8)
+    reputation_pricing_service_url: str = "http://reputation_pricing_service:8008"
+
     # FX — fixed rate for Phase 3 (live FX wired in Phase 8)
     usd_to_inr_rate: Decimal = Decimal("84.0")
 

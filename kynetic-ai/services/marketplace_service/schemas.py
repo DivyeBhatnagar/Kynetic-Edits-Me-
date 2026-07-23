@@ -82,6 +82,9 @@ class ListingResponse(BaseModel):
     title: str | None
     description: str | None
     is_available: bool = False  # Injected from Redis availability index
+    # Phase 8: reputation score injected from reputation_pricing_service
+    reputation_score: float | None = None
+    reputation_components: dict[str, float | None] | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -103,6 +106,8 @@ class ListingBrief(BaseModel):
     status: ListingStatus
     is_available: bool = False
     title: str | None
+    # Phase 8: reputation score injected from reputation_pricing_service
+    reputation_score: float | None = None
 
     class Config:
         from_attributes = True
@@ -119,8 +124,9 @@ class ListingSearchParams(BaseModel):
     max_price_usd: Decimal | None = Field(None, ge=0)
     region: str | None = None
     available_only: bool = True  # Only show active + available listings by default
-    # Phase 8 placeholder — reputation score filter
-    min_reputation_score: float | None = None  # No-op in Phase 3
+    # Phase 8 — reputation score filter (now LIVE, was placeholder in Phase 3)
+    min_reputation_score: float | None = Field(None, ge=0.0, le=1.0)
+    sort_by_reputation: bool = False  # Sort by composite_score DESC when True
 
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)

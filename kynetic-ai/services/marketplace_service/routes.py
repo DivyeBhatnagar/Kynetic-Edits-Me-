@@ -114,6 +114,18 @@ async def create_listing(
     # Add to Redis availability index immediately
     await avail.mark_available(settings.redis_url, listing.id)
 
+    # ── Phase 8: fire-and-ignore pricing suggestion ────────────────────────
+    # Non-blocking: if reputation_pricing_service is down, listing creation succeeds.
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.get(
+                f"{settings.reputation_pricing_service_url}/v1/pricing/suggest",
+                params={"listing_id": str(listing.id)},
+                headers={"Authorization": f"Bearer {auth.get('_raw_token', '')}"},
+            )
+    except Exception:
+        pass  # Pricing suggestion is best-effort; never blocks listing creation
+
     result = ListingResponse.model_validate(listing)
     result.is_available = True
     return result
@@ -131,6 +143,8 @@ async def search_listings(
     max_price_usd: float | None = Query(None, ge=0),
     region: str | None = Query(None),
     available_only: bool = Query(True),
+    min_reputation_score: float | None = Query(None, ge=0.0, le=1.0, description="Phase 8: filter by minimum composite reputation score"),
+    sort_by_reputation: bool = Query(False, description="Phase 8: sort results by reputation score descending"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_db_session),
@@ -145,6 +159,8 @@ async def search_listings(
         max_price_usd=Decimal(str(max_price_usd)) if max_price_usd is not None else None,
         region=region,
         available_only=available_only,
+        min_reputation_score=min_reputation_score,
+        sort_by_reputation=sort_by_reputation,
         page=page,
         page_size=page_size,
     )
@@ -154,11 +170,45 @@ async def search_listings(
 
     # Enrich is_available from Redis
     available_ids = await avail.get_available_ids(settings.redis_url)
+
+    # ── Phase 8: Fetch reputation scores for all returned listings ────────
+    host_ids = list({str(l.host_id) for l in listings})
+    reputation_by_host: dict[str, float] = {}
+    if host_ids:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                # Batch fetch: query each host's latest score from reputation service
+                import asyncio as _asyncio
+                async def _fetch_rep(hid: str) -> tuple[str, float]:
+                    try:
+                        r = await client.get(
+                            f"{settings.reputation_pricing_service_url}/v1/hosts/{hid}/reputation"
+                        )
+                        if r.status_code == 200:
+                            return hid, r.json().get("composite_score", 0.5)
+                    except Exception:
+                        pass
+                    return hid, 0.5  # Neutral fallback
+                results = await _asyncio.gather(*[_fetch_rep(hid) for hid in host_ids])
+                reputation_by_host = dict(results)
+        except Exception:
+            pass  # Reputation enrichment is best-effort
+
     items = []
     for l in listings:
+        # ── Reputation filter (Phase 8 — now live) ─────────────────────────
+        rep_score = reputation_by_host.get(str(l.host_id), 0.5)
+        if params.min_reputation_score is not None and rep_score < params.min_reputation_score:
+            continue  # Filter out below-threshold hosts
+
         brief = ListingBrief.model_validate(l)
         brief.is_available = str(l.id) in available_ids
+        brief.reputation_score = rep_score
         items.append(brief)
+
+    # ── Sort by reputation if requested ───────────────────────────────────
+    if params.sort_by_reputation:
+        items.sort(key=lambda x: x.reputation_score or 0.0, reverse=True)
 
     total_pages = math.ceil(total / page_size) if total > 0 else 1
     return ListingSearchResponse(
@@ -182,6 +232,20 @@ async def get_listing(
 
     result = ListingResponse.model_validate(listing)
     result.is_available = await avail.is_available(settings.redis_url, listing_id)
+
+    # ── Phase 8: enrich with reputation score + components ─────────────────
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            rep_resp = await client.get(
+                f"{settings.reputation_pricing_service_url}/v1/hosts/{listing.host_id}/reputation"
+            )
+            if rep_resp.status_code == 200:
+                rep_data = rep_resp.json()
+                result.reputation_score = rep_data.get("composite_score")
+                result.reputation_components = rep_data.get("components")
+    except Exception:
+        pass  # Non-critical
+
     return result
 
 

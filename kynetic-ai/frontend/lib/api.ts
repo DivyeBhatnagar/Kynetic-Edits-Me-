@@ -477,3 +477,91 @@ export interface WSOutbound {
   error: string | null;
 }
 
+
+// ── Phase 8 Types ──────────────────────────────────────────────────────────────
+
+export interface ReputationComponents {
+  uptime_score: number | null;
+  latency_score: number | null;
+  network_score: number | null;
+  job_success_rate: number | null;
+  benchmark_score_normalised: number | null;
+  response_time_score: number | null;
+}
+
+export interface ReputationScore {
+  host_id: string;
+  composite_score: number;
+  components: ReputationComponents;
+  jobs_evaluated: number;
+  computed_at: string;
+  trend: number[];
+}
+
+export interface PricingSuggestion {
+  listing_id: string;
+  suggested_price_usd: string;
+  suggested_price_inr: string;
+  confidence_interval_low_usd: string | null;
+  confidence_interval_high_usd: string | null;
+  model_version: string;
+  rationale: string;
+}
+
+export interface IdlePrediction {
+  host_id: string;
+  predicted_idle_hours_per_day: number;
+  predicted_utilization_fraction: number;
+  income_projection_monthly_usd: string;
+  income_projection_monthly_inr: string;
+  electricity_cost_monthly_usd: string | null;
+  net_income_monthly_usd: string | null;
+  computed_at: string;
+}
+
+export interface RevenueAnalytics {
+  total_revenue_usd_7d: string;
+  total_revenue_usd_30d: string;
+  total_revenue_inr_7d: string;
+  total_revenue_inr_30d: string;
+  total_jobs_completed: number;
+  avg_job_duration_hours: number;
+}
+
+export interface HealthSnapshot {
+  last_heartbeat_at: string | null;
+  uptime_pct_30d: number | null;
+  gpu_temp_celsius: number | null;
+  cpu_temp_celsius: number | null;
+  power_draw_watts: number | null;
+}
+
+export interface HostDashboard {
+  host_id: string;
+  reputation: ReputationScore | null;
+  revenue: RevenueAnalytics;
+  health: HealthSnapshot;
+  idle_prediction: IdlePrediction | null;
+  pricing_suggestion: PricingSuggestion | null;
+}
+
+
+// ── Phase 8 API helpers ────────────────────────────────────────────────────────
+
+export const reputationApi = {
+  /** GET /hosts/{id}/reputation — public, no auth required */
+  get: (hostId: string): Promise<ReputationScore> =>
+    request<ReputationScore>(`/hosts/${hostId}/reputation`),
+};
+
+export const dashboardApi = {
+  /** GET /hosts/{id}/dashboard — requires auth */
+  get: (hostId: string, token: string): Promise<HostDashboard> =>
+    request<HostDashboard>(`/hosts/${hostId}/dashboard`, { token }),
+};
+
+export const pricingSuggestApi = {
+  /** GET /pricing/suggest?listing_id=... — requires auth */
+  suggest: (listingId: string, token: string): Promise<PricingSuggestion> =>
+    request<PricingSuggestion>(`/pricing/suggest?listing_id=${listingId}`, { token }),
+};

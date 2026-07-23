@@ -14,6 +14,7 @@ import json
 import uuid
 from typing import Annotated
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -102,6 +103,28 @@ async def recommend(
             else:
                 budget_inr = float(body.budget.amount)
 
+        # ── 2b. Phase 8: fetch reputation scores for all candidates ───────────
+        host_ids = list({str(l["host_id"]) for l in listings})
+        reputation_scores: dict[str, float] = {}
+        if host_ids:
+            try:
+                import asyncio as _asyncio
+                async with httpx.AsyncClient(timeout=2.0) as rep_client:
+                    async def _fetch(hid: str) -> tuple[str, float]:
+                        try:
+                            r = await rep_client.get(
+                                f"{settings.reputation_pricing_service_url}/v1/hosts/{hid}/reputation"
+                            )
+                            if r.status_code == 200:
+                                return hid, r.json().get("composite_score", 0.5)
+                        except Exception:
+                            pass
+                        return hid, 0.5
+                    pairs = await _asyncio.gather(*[_fetch(h) for h in host_ids])
+                    reputation_scores = dict(pairs)
+            except Exception:
+                pass  # Degrade gracefully
+
         # ── 3. Rank ──────────────────────────────────────────────────────────
         ranked: list[ScoredListing] = rank_listings(
             listings,
@@ -111,6 +134,8 @@ async def recommend(
             weight_price=settings.weight_price,
             weight_benchmark=settings.weight_benchmark,
             weight_availability=settings.weight_availability,
+            weight_reputation=getattr(settings, "weight_reputation", 0.15),
+            reputation_scores=reputation_scores,
         )
 
         if not ranked:

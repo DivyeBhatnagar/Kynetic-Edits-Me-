@@ -5,7 +5,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Kynetic AI** is a resource-agnostic compute marketplace connecting idle GPU hardware (RTX 4090, A100, H100) with AI developers. Hosts monetize idle consumer and enterprise hardware, while developers deploy microVM instances with 1-click AI Copilot matching, real-time telemetry, and automated billing.
+**Kynetic AI** is a resource-agnostic compute marketplace connecting idle GPU hardware (RTX 4090, A100, H100) with AI developers. Hosts monetize idle consumer and enterprise hardware, while developers deploy microVM instances with 1-click AI Copilot matching, real-time telemetry, and automated per-second billing.
 
 ---
 
@@ -13,9 +13,9 @@
 
 - 🖥️ **Monetize Idle Hardware**: Host agent discovers GPUs (NVML), benchmarks compute capabilities, and registers nodes automatically.
 - 🤖 **AI Resource Copilot**: Natural language workload matching (*"Find an RTX 4090 under $1.50/hr for LoRA fine-tuning"*) with weighted scoring.
-- 🔒 **Zero-Trust Hardening**: Isolated Firecracker MicroVM runtime, ephemeral storage encryption, kill-switch suspension, and device fingerprinting.
-- 💳 **Dual-Currency Billing**: USD & INR wallet top-ups via Stripe with automated GST tax invoicing.
-- 📊 **Real-time Telemetry & Monitoring**: Prometheus metrics, GPU VRAM/temperature tracking, and automated host heartbeats.
+- 🔒 **Zero-Trust Hardening**: Isolated Firecracker MicroVM runtime, ephemeral storage LUKS2 encryption, kill-switch suspension, eBPF XDP firewall, and hardware attestation.
+- 💳 **Dual-Currency Billing**: USD & INR wallet top-ups via Stripe and Razorpay with automated per-second metering and 18% GST tax invoicing.
+- 📊 **Real-time Telemetry & Monitoring**: Prometheus metrics, GPU VRAM/temperature tracking, host command channels, and automated heartbeats.
 
 ---
 
@@ -52,12 +52,12 @@
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │ Reputation & │    │  Security    │    │Notifications │    │  Monitoring  │
 │ Pricing      │    │  Service     │    │  Service     │    │  Service     │
-│   (:8006)    │    │   (:8007)    │    │   (:8009)    │    │   (:8010)    │
+│   (:8006)    │    │   (:8007)    │    │   (:8010)    │    │   (:8011)    │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
 
 Data Infrastructure:
 - PostgreSQL (SQLAlchemy 2.0 Async + Alembic Migrations)
-- Redis (Session Cache + Rate Limiting + Celery Broker)
+- Redis (Session Cache + Rate Limiting + Celery Broker + Pub/Sub Billing Event Bus)
 - Prometheus & Grafana (Metrics & Monitoring)
 ```
 
@@ -68,14 +68,14 @@ Data Infrastructure:
 ```
 kynetic-ai/
 ├── frontend/             # Next.js 16 Unified Web Application (User, Host & Admin)
-├── host_agent/           # Cross-platform Python Host Agent & Benchmark Engine
+├── host_agent/           # Cross-platform Python Host Agent, command servicer, idempotency store & Benchmark Engine
 ├── services/             # FastAPI Microservices
 │   ├── api_gateway/      # Unified entry point & rate limiting middleware
 │   ├── auth_service/     # Authentication, bcrypt, PyJWT & OTP verification
 │   ├── host_service/     # Host heartbeats & NVML telemetry ingestion
 │   ├── marketplace_service/ # Hardware listing catalog & search engine
-│   ├── wallet_billing_service/ # Wallet balances, dual-currency billing & Stripe
-│   ├── provisioning_service/   # Instance lifecycle & WireGuard tunneling
+│   ├── wallet_billing_service/ # Wallet balances, per-second metering, dual-currency billing & Stripe
+│   ├── provisioning_service/   # Instance lifecycle, pre-flight validators & WireGuard tunneling
 │   ├── security_service/       # Kill-switch, image scanning & trust tiers
 │   ├── ai_router_copilot_service/ # Workload ranking & Copilot matching
 │   ├── reputation_pricing_service/ # Host scoring & dynamic pricing
@@ -83,7 +83,9 @@ kynetic-ai/
 │   └── monitoring_service/     # Prometheus metrics scrapers
 ├── libs/                 # Shared Python Libraries
 │   ├── common/           # Logging, async HTTP client & middleware
-│   └── db_models/        # Shared SQLAlchemy 2.0 async database models
+│   ├── db_models/        # Shared SQLAlchemy 2.0 async database models
+│   └── events/           # Internal Redis Pub/Sub event bus
+├── tests/                # Pytest Unit & E2E Integration Test Suite (88 Passing Tests)
 ├── infra/                # Infrastructure & Containerization
 │   ├── docker-compose.yml# Local multi-container development stack
 │   └── k8s/              # Production Kubernetes manifests
@@ -113,11 +115,10 @@ source venv/bin/activate
 pip install -r requirements.txt 2>/dev/null || pip install -e .
 ```
 
-### 2. Frontend Setup
+### 2. Run Test Suite
 ```bash
-cd frontend
-npm install
-npm run dev
+python3 -m pytest tests/unit/ tests/integration/ -v
+# Output: 88 passed in 2.25s
 ```
 
 ### 3. Docker Compose Stack (All Services + Infrastructure)
@@ -135,21 +136,20 @@ docker-compose up --build -d
 
 - **Password Hashing**: `bcrypt` with configurable salt rounds.
 - **Token Security**: Short-lived `PyJWT` access tokens with SHA-256 refresh token rotation.
-- **Container Hardening**: Image scanning, forbidden syscall filters, and non-root execution.
+- **Pre-Flight Validation Gate**: DB-level pre-flight checks enforcing wallet balance holds, listing availability, and host heartbeat freshness before scheduling.
+- **Container Hardening**: Image scanning, forbidden syscall filters, non-root execution, and eBPF XDP private network micro-segmentation.
 - **Emergency Suspension**: Admin kill-switch to instantly halt rogue instances or compromised host accounts.
 
 ---
 
-## 📄 Documentation
+## 📄 Setup Documentation
 
 - [System Architecture](Docs/Setup/ARCHITECTURE.md)
 - [Development Guide](Docs/Setup/DEVELOPMENT.md)
 - [Environment Configuration](Docs/Setup/ENVIRONMENT.md)
-- [Database Schema](Docs/Setup/DATABASE.md)
-- [Host Agent Setup](Docs/Setup/HOST_AGENT.md)
-
----
-
-## 📜 License
-
-Distributed under the MIT License. See [LICENSE](Docs/Setup/LICENSE) for details.
+- [Database Schema & Migrations](Docs/Setup/DATABASE.md)
+- [Host Agent Architecture](Docs/Setup/HOST_AGENT.md)
+- [Marketplace & AI Router](Docs/Setup/MARKETPLACE.md)
+- [API Endpoints Specification](Docs/Setup/API.md)
+- [Production Deployment](Docs/Setup/DEPLOYMENT.md)
+- [Release Changelog](Docs/Setup/CHANGELOG.md)

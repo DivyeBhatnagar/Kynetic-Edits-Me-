@@ -52,6 +52,7 @@ from services.provisioning_service.ssh_keys import (
     decrypt_private_key,
     key_expiry_time,
 )
+from services.provisioning_service.audit import log_instance_event
 from services.provisioning_service.wireguard import resolve_ssh_host
 from services.provisioning_service.tasks import (
     stop_instance,
@@ -163,6 +164,13 @@ async def launch_instance(
 
     async with session.begin():
         instance = await instance_repo.get_by_id(instance_id)
+        await log_instance_event(
+            session,
+            actor_id=developer_id,
+            instance_id=instance_id,
+            action="create",
+            metadata={"listing_id": str(body.listing_id), "template_id": str(body.template_id) if body.template_id else None},
+        )
     return InstanceResponse.model_validate(instance)
 
 
@@ -246,6 +254,13 @@ async def stop_instance_route(
             detail=f"Instance must be running to stop. Current status: {instance.status.value}",
         )
     stop_instance.delay(str(instance_id))
+    await log_instance_event(
+        session,
+        actor_id=developer_id,
+        instance_id=instance_id,
+        action="stop",
+        metadata={"reason": body.reason},
+    )
     return InstanceActionResponse(
         instance_id=instance_id,
         status=InstanceStatus.stopping,
@@ -284,6 +299,12 @@ async def start_instance_route(
             raise HTTPException(status_code=409, detail=str(exc))
 
     start_billing(instance_id)
+    await log_instance_event(
+        session,
+        actor_id=developer_id,
+        instance_id=instance_id,
+        action="start",
+    )
     return InstanceActionResponse(
         instance_id=instance_id,
         status=InstanceStatus.running,
@@ -315,6 +336,13 @@ async def terminate_instance_route(
         raise HTTPException(status_code=409, detail="Instance already terminated")
 
     terminate_instance.delay(str(instance_id), body.reason or "user")
+    await log_instance_event(
+        session,
+        actor_id=developer_id,
+        instance_id=instance_id,
+        action="terminate",
+        metadata={"reason": body.reason, "force": body.force},
+    )
     return InstanceActionResponse(
         instance_id=instance_id,
         status=InstanceStatus.terminated,

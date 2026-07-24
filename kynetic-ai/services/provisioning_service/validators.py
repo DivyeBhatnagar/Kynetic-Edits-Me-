@@ -27,6 +27,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Union
 
+from services.provisioning_service.audit import log_validation_rejection
+
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -314,34 +316,45 @@ async def validate_instance_request(
         hold_hours=str(hold_hours),
     )
 
-    # ── Step 1: Permissions ──────────────────────────────────────────
-    await _validate_permissions(db, req_uuid, dev_uuid)
+    try:
+        # ── Step 1: Permissions ──────────────────────────────────────────
+        await _validate_permissions(db, req_uuid, dev_uuid)
 
-    # ── Step 2: Listing ───────────────────────────────────────────
-    listing = await _validate_listing(db, listing_id)
+        # ── Step 2: Listing ───────────────────────────────────────────
+        listing = await _validate_listing(db, listing_id)
 
-    # ── Step 3: Host (uses listing.host_id) ─────────────────────────
-    host = await _validate_host(db, listing.host_id)
+        # ── Step 3: Host (uses listing.host_id) ─────────────────────────
+        host = await _validate_host(db, listing.host_id)
 
-    # ── Step 4: Wallet balance ───────────────────────────────────
-    # Determine preferred currency from the developer's wallet.
-    wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == dev_uuid))
-    wallet = wallet_result.scalar_one_or_none()
+        # ── Step 4: Wallet balance ───────────────────────────────────
+        # Determine preferred currency from the developer's wallet.
+        wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == dev_uuid))
+        wallet = wallet_result.scalar_one_or_none()
 
-    # Fallback to USD if wallet doesn't exist yet (will be caught in _validate_wallet_balance).
-    preferred_currency = wallet.preferred_currency if wallet else Currency.usd
+        # Fallback to USD if wallet doesn't exist yet (will be caught in _validate_wallet_balance).
+        preferred_currency = wallet.preferred_currency if wallet else Currency.usd
 
-    # Compute hold amount in the developer's preferred currency.
-    if preferred_currency is Currency.inr:
-        hourly_rate = listing.price_per_hour_inr
-        hold_currency = Currency.inr
-    else:
-        hourly_rate = listing.price_per_hour_usd
-        hold_currency = Currency.usd
+        # Compute hold amount in the developer's preferred currency.
+        if preferred_currency is Currency.inr:
+            hourly_rate = listing.price_per_hour_inr
+            hold_currency = Currency.inr
+        else:
+            hourly_rate = listing.price_per_hour_usd
+            hold_currency = Currency.usd
 
-    hold_amount = (hourly_rate * hold_hours).quantize(Decimal("0.000001"))
+        hold_amount = (hourly_rate * hold_hours).quantize(Decimal("0.000001"))
 
-    await _validate_wallet_balance(db, developer_id, hold_amount, hold_currency)
+        await _validate_wallet_balance(db, developer_id, hold_amount, hold_currency)
+
+    except InstanceValidationError as exc:
+        await log_validation_rejection(
+            db,
+            requester_id=req_uuid,
+            listing_id=str(listing_id),
+            code=exc.code,
+            message=exc.message,
+        )
+        raise
 
     log.info(
         "validator.passed",

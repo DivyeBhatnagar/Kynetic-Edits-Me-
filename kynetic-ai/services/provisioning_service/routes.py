@@ -38,6 +38,8 @@ from services.provisioning_service.validators import (
 from services.provisioning_service.schemas import (
     ConnectionInfo,
     DeletionReceiptResponse,
+    InstanceActionResponse,
+    InstanceCreateRequest,
     InstanceListResponse,
     InstanceResponse,
     LaunchRequest,
@@ -222,6 +224,7 @@ async def list_instances(
 
 @provisioning_router.post(
     "/{instance_id}/stop",
+    response_model=InstanceActionResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Stop (suspend) a running instance",
 )
@@ -243,13 +246,18 @@ async def stop_instance_route(
             detail=f"Instance must be running to stop. Current status: {instance.status.value}",
         )
     stop_instance.delay(str(instance_id))
-    return {"message": "Stop initiated", "instance_id": str(instance_id)}
+    return InstanceActionResponse(
+        instance_id=instance_id,
+        status=InstanceStatus.stopping,
+        message="Stop initiated",
+    )
 
 
 # ── Start (resume from stopped) ────────────────────────────────────────────
 
 @provisioning_router.post(
     "/{instance_id}/start",
+    response_model=InstanceActionResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Resume a stopped instance",
 )
@@ -276,13 +284,18 @@ async def start_instance_route(
             raise HTTPException(status_code=409, detail=str(exc))
 
     start_billing(instance_id)
-    return {"message": "Instance resumed", "instance_id": str(instance_id)}
+    return InstanceActionResponse(
+        instance_id=instance_id,
+        status=InstanceStatus.running,
+        message="Instance resumed",
+    )
 
 
 # ── Terminate ──────────────────────────────────────────────────────────────
 
 @provisioning_router.post(
     "/{instance_id}/terminate",
+    response_model=InstanceActionResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Terminate an instance (irreversible)",
 )
@@ -302,7 +315,11 @@ async def terminate_instance_route(
         raise HTTPException(status_code=409, detail="Instance already terminated")
 
     terminate_instance.delay(str(instance_id), body.reason or "user")
-    return {"message": "Termination initiated", "instance_id": str(instance_id)}
+    return InstanceActionResponse(
+        instance_id=instance_id,
+        status=InstanceStatus.terminated,
+        message="Termination initiated",
+    )
 
 
 # ── SSH Connection info ────────────────────────────────────────────────────

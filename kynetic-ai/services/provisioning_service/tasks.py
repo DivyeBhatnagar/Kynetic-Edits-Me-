@@ -114,7 +114,8 @@ async def _provision_instance_async(instance_id_str: str) -> None:
 
             # ── Phase 5: Image scan pre-check ─────────────────────────────
             # Skip when FIRECRACKER_MOCK=true (no real images in dev/CI)
-            if not settings.firecracker_mock and instance.docker_image:
+            docker_img = getattr(instance, "docker_image", None)
+            if not settings.firecracker_mock and docker_img:
                 import httpx
                 try:
                     async with httpx.AsyncClient(timeout=60.0) as http:
@@ -240,8 +241,8 @@ async def _provision_instance_async(instance_id_str: str) -> None:
                 developer_id=_inst.developer_id,
                 listing_id=_inst.listing_id,
                 price_per_second_usd=str(_inst.price_per_second_usd),
-                price_per_second_inr=str(_inst.price_per_second_inr),
-                preferred_currency=str(getattr(_inst, 'preferred_currency', 'usd') or 'usd'),
+                price_per_second_inr=str(getattr(_inst, "price_per_second_inr", "0.023333")),
+                preferred_currency=str(getattr(_inst, "preferred_currency", "usd") or "usd"),
             )
     except Exception as _evt_exc:
         log.warning(

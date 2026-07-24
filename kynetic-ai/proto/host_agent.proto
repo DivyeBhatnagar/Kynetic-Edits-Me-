@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package host_agent;
+
+// HostAgent control plane RPC interface (mTLS-authenticated)
+service HostAgent {
+  rpc Launch (LaunchRequest) returns (CommandResponse);
+  rpc Stop (StopRequest) returns (CommandResponse);
+  rpc Terminate (TerminateRequest) returns (CommandResponse);
+  rpc StreamStatus (StatusRequest) returns (stream StatusUpdate);
+}
+
+message LaunchRequest {
+  string instance_id = 1;
+  string template_id = 2;
+  string image = 3;
+  string idempotency_key = 4;
+  string public_key = 5;
+  string wireguard_config = 6;
+  string price_per_second_usd = 7;
+}
+
+message StopRequest {
+  string instance_id = 1;
+  string idempotency_key = 2;
+}
+
+message TerminateRequest {
+  string instance_id = 1;
+  string idempotency_key = 2;
+}
+
+message CommandResponse {
+  bool success = 1;
+  string message = 2;
+  string idempotency_key = 3;
+}
+
+message StatusRequest {
+  string host_id = 1;
+}
+
+message StatusUpdate {
+  string instance_id = 1;
+  string status = 2;      // launching | running | stopped | failed | terminated
+  string timestamp = 3;
+}

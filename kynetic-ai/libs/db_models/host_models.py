@@ -282,3 +282,71 @@ class HostHeartbeat(Base):
         return (
             f"<HostHeartbeat host={self.host_id} status={self.status} at={self.recorded_at}>"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 29 — Host Commands
+# ---------------------------------------------------------------------------
+class CommandType(str, enum.Enum):
+    LAUNCH = "launch"
+    STOP = "stop"
+    TERMINATE = "terminate"
+
+
+class CommandStatus(str, enum.Enum):
+    SENT = "sent"
+    ACKED = "acked"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+
+
+class HostCommand(Base):
+    """
+    Phase 29 — Audit trail of commands sent to Host Agents.
+    Records every signed, idempotent command issued to a host.
+    """
+    __tablename__ = "host_commands"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("hosts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    instance_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("instances.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    command_type: Mapped[CommandType] = mapped_column(
+        Enum(CommandType, name="command_type_enum", create_type=True),
+        nullable=False,
+        index=True,
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    status: Mapped[CommandStatus] = mapped_column(
+        Enum(CommandStatus, name="command_status_enum", create_type=True),
+        nullable=False,
+        default=CommandStatus.SENT,
+        index=True,
+    )
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    acked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_host_commands_host_instance", "host_id", "instance_id"),
+    )
+

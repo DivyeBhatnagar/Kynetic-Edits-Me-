@@ -50,6 +50,12 @@ from services.provisioning_service.wireguard import (
     allocate_wireguard_ip,
     generate_peer_config,
 )
+# Phase 28: Billing Event Integration
+from services.provisioning_service.status_sync import (
+    on_instance_running,
+    on_instance_terminated,
+    on_instance_failed,
+)
 
 log = structlog.get_logger(__name__)
 settings = get_settings()
@@ -185,6 +191,16 @@ async def _provision_instance_async(instance_id_str: str) -> None:
             except Exception as exc:
                 log.error("provision_instance.agent_failed", error=str(exc), instance_id=instance_id_str)
                 await instance_repo.transition_state(iid, InstanceStatus.failed)
+                # Phase 28: release hold immediately on failure
+                try:
+                    if instance:
+                        await on_instance_failed(
+                            instance_id=iid,
+                            developer_id=instance.developer_id,
+                            reason=f"agent_unreachable: {exc}",
+                        )
+                except Exception:
+                    pass
                 return
 
             firecracker_vm_id = result.get("firecracker_vm_id")
@@ -212,6 +228,28 @@ async def _provision_instance_async(instance_id_str: str) -> None:
 
     # 6. Start billing (outside transaction so billing errors don't rollback)
     start_billing(iid)
+
+    # Phase 28: Publish INSTANCE_RUNNING so the billing service starts metering
+    try:
+        async with async_session_factory() as session:
+            async with session.begin():
+                _inst = await InstanceRepository(session).get_by_id(iid)
+        if _inst:
+            await on_instance_running(
+                instance_id=iid,
+                developer_id=_inst.developer_id,
+                listing_id=_inst.listing_id,
+                price_per_second_usd=str(_inst.price_per_second_usd),
+                price_per_second_inr=str(_inst.price_per_second_inr),
+                preferred_currency=str(getattr(_inst, 'preferred_currency', 'usd') or 'usd'),
+            )
+    except Exception as _evt_exc:
+        log.warning(
+            "provision_instance.running_event_failed",
+            instance_id=instance_id_str,
+            error=str(_evt_exc),
+        )
+
     log.info("provision_instance.complete", instance_id=instance_id_str)
 
 
@@ -420,6 +458,24 @@ async def _terminate_instance_async(instance_id_str: str, reason: str) -> None:
 
             # 8. Transition → terminated
             await instance_repo.transition_state(iid, InstanceStatus.terminated)
+            _billed = getattr(instance, 'billed_seconds', 0) or 0
+
+    # Phase 28: Publish INSTANCE_TERMINATED so billing finalizes and releases the hold
+    try:
+        if instance:
+            await on_instance_terminated(
+                instance_id=iid,
+                developer_id=instance.developer_id,
+                listing_id=instance.listing_id,
+                reason=reason,
+                billed_seconds=_billed,
+            )
+    except Exception as _evt_exc:
+        log.warning(
+            "terminate_instance.terminated_event_failed",
+            instance_id=instance_id_str,
+            error=str(_evt_exc),
+        )
 
     log.info("terminate_instance.complete", instance_id=instance_id_str)
 

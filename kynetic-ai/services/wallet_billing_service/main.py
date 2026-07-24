@@ -36,9 +36,15 @@ app.include_router(billing_router)
 
 @app.on_event("startup")
 async def on_startup():
-    """Start the Redis event listener for auto-creating wallets on signup."""
+    """Start Redis event listeners: wallet auto-create + billing lifecycle events."""
+    # Existing: auto-create wallets on user signup
     from services.wallet_billing_service.event_listener import start_event_listener
     start_event_listener()
+
+    # Phase 28: Billing lifecycle event loop (INSTANCE_RUNNING / TERMINATED / FAILED)
+    from services.wallet_billing_service.event_handlers import start_billing_event_listeners
+    app.state.billing_event_task = start_billing_event_listeners()
+
     logger.info("wallet_billing_service_started")
 
 

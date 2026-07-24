@@ -11,6 +11,13 @@ ignore = ["E501"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "integration: mark test as an integration test",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
 
 [tool.mypy]
 python_version = "3.11"

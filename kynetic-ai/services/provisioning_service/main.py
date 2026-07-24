@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIDMiddleware
 from services.provisioning_service.config import get_settings
+from services.provisioning_service.exception_handlers import register_exception_handlers
 from services.provisioning_service.routes import callback_router, provisioning_router
 from services.provisioning_service.template_routes import template_router
 
@@ -33,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Phase 27: Register structured exception handlers (InstanceValidationError → HTTP)
+register_exception_handlers(app)
 
 # Public API routes (proxied through gateway)
 app.include_router(provisioning_router, prefix="/v1")

@@ -30,6 +30,11 @@ from services.provisioning_service.scheduler import (
     SchedulerError,
     schedule_instance,
 )
+# Phase 27: Central business-logic validation gate (DB-level, pre-scheduler)
+from services.provisioning_service.validators import (
+    InstanceValidationError,
+    validate_instance_request,
+)
 from services.provisioning_service.schemas import (
     ConnectionInfo,
     DeletionReceiptResponse,
@@ -103,7 +108,27 @@ async def launch_instance(
     creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer)],
     session=Depends(get_async_session),
 ):
+    from decimal import Decimal
+    from services.provisioning_service.config import get_settings as _get_settings
+
+    _settings = _get_settings()
+    hold_hours = Decimal(str(_settings.hold_hours))
     instance_repo = InstanceRepository(session)
+
+    # ── Phase 27: DB-level validation gate ────────────────────────────────
+    # Runs atomically against the DB before any infrastructure or HTTP calls.
+    # InstanceValidationError is caught by the registered exception handler
+    # in exception_handlers.py and converted to the correct HTTP status code.
+    async with session.begin():
+        await validate_instance_request(
+            session,
+            requester_id=str(developer_id),
+            developer_id=str(developer_id),
+            listing_id=str(body.listing_id),
+            hold_hours=hold_hours,
+        )
+
+    # ── Scheduler: HTTP-based checks + wallet hold + instance creation ─────
     try:
         async with session.begin():
             instance_id = await schedule_instance(

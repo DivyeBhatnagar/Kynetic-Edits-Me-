@@ -43,7 +43,7 @@ class ProvisioningSettings(BaseSettings):
     # ── SSH Key Security ───────────────────────────────────────────────────
     # Fernet key for encrypting SSH private keys in DB.
     # Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    ssh_key_fernet_key: str = "REPLACE_WITH_32_BYTE_BASE64_URL_FERNET_KEY_IN_PRODUCTION="
+    ssh_key_fernet_key: str = "1ynQduwBAAqKhRDytk9Bb9vT6x_dsNeH3-6YrjRohZI="
     ssh_key_size_bits: int = 4096
     # How long (seconds) before an SSH session key is auto-rotated
     ssh_key_rotation_seconds: int = 3600  # 1 hour

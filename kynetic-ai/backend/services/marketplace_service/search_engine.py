@@ -24,39 +24,17 @@ async def sync_searchable_listing(
     session: AsyncSession,
     listing_id: uuid.UUID,
 ) -> SearchableListing | None:
-    """
-    Sync or upsert a single listing into searchable_listings.
-    """
-    # 1. Fetch listing
-    l_stmt = select(Listing).where(Listing.id == listing_id)
-    l_res = await session.execute(l_stmt)
-    listing = l_res.scalars().first()
-    if not listing:
+    """Sync or upsert a single listing into searchable_listings with 1 query."""
+    stmt = select(Listing, Host).outerjoin(Host, Listing.host_id == Host.id).where(Listing.id == listing_id)
+    res = await session.execute(stmt)
+    row = res.first()
+    if not row:
         return None
-
-    # 2. Fetch host data
-    h_stmt = select(Host).where(Host.id == listing.host_id)
-    h_res = await session.execute(h_stmt)
-    host = h_res.scalars().first()
-
-    # 3. Fetch latest HostScore (performance, health)
-    hs_stmt = (
-        select(HostScore)
-        .where(HostScore.host_id == listing.host_id)
-        .order_by(HostScore.computed_at.desc())
-        .limit(1)
-    )
-    hs_res = await session.execute(hs_stmt)
+    listing, host = row
+    
+    hs_res = await session.execute(select(HostScore).where(HostScore.host_id == listing.host_id).order_by(HostScore.computed_at.desc()).limit(1))
     host_score = hs_res.scalars().first()
-
-    # 4. Fetch latest ReputationScore
-    rs_stmt = (
-        select(ReputationScore)
-        .where(ReputationScore.host_id == listing.host_id)
-        .order_by(ReputationScore.computed_at.desc())
-        .limit(1)
-    )
-    rs_res = await session.execute(rs_stmt)
+    rs_res = await session.execute(select(ReputationScore).where(ReputationScore.host_id == listing.host_id).order_by(ReputationScore.computed_at.desc()).limit(1))
     rep_score = rs_res.scalars().first()
 
     # Build search values

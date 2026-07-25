@@ -19,7 +19,7 @@ from libs.common.auth import require_auth
 from services.reputation_pricing_service.config import get_settings
 from services.reputation_pricing_service.pricing import predict_idle_time
 from services.reputation_pricing_service.pricing import PricingFeatures, suggest_price
-from services.reputation_pricing_service.reputation import ReputationInputs, compute_reputation
+from services.reputation_pricing_service.reputation_engine import ReputationInputs, compute_reputation
 from services.reputation_pricing_service.repository import (
     get_latest_idle_prediction,
     get_latest_reputation,

@@ -34,7 +34,7 @@ def _run_async(coro):
 async def _recompute_for_host(host_id: uuid.UUID) -> float:
     """Core async logic for computing and persisting reputation for one host."""
     from libs.db_models.database import AsyncSessionFactory
-    from services.reputation_pricing_service.reputation import ReputationInputs, compute_reputation
+    from services.reputation_pricing_service.reputation_engine import ReputationInputs, compute_reputation
     from services.reputation_pricing_service.repository import (
         get_reputation_inputs,
         save_reputation_score,

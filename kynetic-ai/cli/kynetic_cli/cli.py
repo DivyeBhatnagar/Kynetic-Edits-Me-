@@ -16,6 +16,23 @@ from kynetic_cli.config import load_config, save_config
 console = Console()
 
 
+def print_output(ctx: click.Context, data: dict | list, title: str = "Results", columns: list[tuple[str, str]] | None = None):
+    """Unified JSON / Rich Table output formatter."""
+    if ctx.obj.get("json_output"):
+        import json
+        console.print_json(json.dumps(data, default=str))
+        return
+    if isinstance(data, list) and columns:
+        table = Table(title=title)
+        for header, _ in columns:
+            table.add_column(header)
+        for row in data:
+            table.add_row(*[str(getattr(row, key, row.get(key, "")) if isinstance(row, dict) else getattr(row, key, "")) for _, key in columns])
+        console.print(table)
+    else:
+        console.print(data)
+
+
 @click.group()
 @click.option("--api-url", envvar="KYNETIC_API_URL", help="Kynetic API Gateway URL")
 @click.option("--json", "json_output", is_flag=True, help="Output responses as JSON")

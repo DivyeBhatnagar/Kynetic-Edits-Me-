@@ -242,3 +242,38 @@ async def apply_manual_restore(
     return await emit_reputation_event(
         session, host_id, "manual_restore", impact_delta, meta
     )
+
+
+class ReputationInputs:
+    def __init__(self, heartbeats_received: int = 0, heartbeats_expected: int = 1, provisioning_latency_p99_ms: float | None = None, network_throughput_mbps: float | None = None, jobs_completed: int = 0, jobs_total: int = 0, benchmark_raw: float | None = None, benchmark_class_min: float = 0.0, benchmark_class_max: float = 1.0, avg_agent_response_ms: float | None = None):
+        self.heartbeats_received = heartbeats_received
+        self.heartbeats_expected = heartbeats_expected
+        self.provisioning_latency_p99_ms = provisioning_latency_p99_ms
+        self.network_throughput_mbps = network_throughput_mbps
+        self.jobs_completed = jobs_completed
+        self.jobs_total = jobs_total
+        self.benchmark_raw = benchmark_raw
+        self.benchmark_class_min = benchmark_class_min
+        self.benchmark_class_max = benchmark_class_max
+        self.avg_agent_response_ms = avg_agent_response_ms
+
+
+class ReputationResult:
+    def __init__(self, components: dict[str, float | None], composite: float):
+        self.uptime_score = components.get("uptime")
+        self.latency_score = components.get("latency")
+        self.network_score = components.get("network")
+        self.job_success_rate = components.get("job_success")
+        self.benchmark_score_normalised = components.get("benchmark")
+        self.response_time_score = components.get("response_time")
+        self.composite_score = composite
+
+
+def compute_reputation(inputs: ReputationInputs, weights: dict[str, float] | None = None) -> ReputationResult:
+    uptime = min(1.0, inputs.heartbeats_received / inputs.heartbeats_expected) if inputs.heartbeats_expected > 0 else 0.0
+    job_success = (inputs.jobs_completed / inputs.jobs_total) if inputs.jobs_total > 0 else None
+    components = {"uptime": uptime, "job_success": job_success}
+    present = {k: v for k, v in components.items() if v is not None}
+    composite = sum(present.values()) / len(present) if present else 0.5
+    return ReputationResult(components=components, composite=composite)
+

@@ -49,7 +49,7 @@ services:
   api_gateway:
     build:
       context: .
-      dockerfile: services/api_gateway/Dockerfile
+      dockerfile: backend/services/api_gateway/Dockerfile
     command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
@@ -62,8 +62,8 @@ services:
       AUTH_SERVICE_URL: http://auth_service:8001
       HOST_SERVICE_URL: http://host_service:8002
     volumes:
-      - ./libs:/app/libs
-      - ./services/api_gateway:/app/services/api_gateway
+      - ./backend/libs:/app/libs
+      - ./backend/services/api_gateway:/app/services/api_gateway
     depends_on:
       redis:
         condition: service_healthy
@@ -75,7 +75,7 @@ services:
   auth_service:
     build:
       context: .
-      dockerfile: services/auth_service/Dockerfile
+      dockerfile: backend/services/auth_service/Dockerfile
     command: uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload
     ports:
       - "8001:8001"
@@ -92,8 +92,8 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: "30"
       BCRYPT_ROUNDS: "10"   # Lower rounds in dev for faster tests
     volumes:
-      - ./libs:/app/libs
-      - ./services/auth_service:/app/services/auth_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/auth_service:/app/services/auth_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,7 +105,7 @@ services:
   host_service:
     build:
       context: .
-      dockerfile: services/host_service/Dockerfile
+      dockerfile: backend/services/host_service/Dockerfile
     command: uvicorn services.host_service.main:app --host 0.0.0.0 --port 8002 --reload
     ports:
       - "8002:8002"
@@ -122,8 +122,8 @@ services:
       REBENCHMARK_INTERVAL_HOURS: "48"
       HEARTBEAT_TIMEOUT_SECONDS: "120"
     volumes:
-      - ./libs:/app/libs
-      - ./services/host_service:/app/services/host_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,7 +135,7 @@ services:
   host_service_worker:
     build:
       context: .
-      dockerfile: services/host_service/Dockerfile
+      dockerfile: backend/services/host_service/Dockerfile
     command: >
       celery -A services.host_service.celery_app.celery_app worker
         --loglevel=info
@@ -152,8 +152,8 @@ services:
       REBENCHMARK_INTERVAL_HOURS: "48"
       HEARTBEAT_TIMEOUT_SECONDS: "120"
     volumes:
-      - ./libs:/app/libs
-      - ./services/host_service:/app/services/host_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,7 +165,7 @@ services:
   celery_beat:
     build:
       context: .
-      dockerfile: services/host_service/Dockerfile
+      dockerfile: backend/services/host_service/Dockerfile
     command: >
       celery -A services.host_service.celery_app.celery_app beat
         --loglevel=info
@@ -182,8 +182,8 @@ services:
       REBENCHMARK_INTERVAL_HOURS: "48"
       HEARTBEAT_TIMEOUT_SECONDS: "120"
     volumes:
-      - ./libs:/app/libs
-      - ./services/host_service:/app/services/host_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
     depends_on:
       redis:
         condition: service_healthy
@@ -193,7 +193,7 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: services/auth_service/Dockerfile
+      dockerfile: backend/services/auth_service/Dockerfile
     command: >
       sh -c "
         echo 'Waiting for postgres...' &&
@@ -204,9 +204,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
     volumes:
-      - ./libs:/app/libs
-      - ./services/auth_service:/app/services/auth_service
-      - ./alembic.ini:/app/alembic.ini
+      - ./backend/libs:/app/libs
+      - ./backend/services/auth_service:/app/services/auth_service
+      - ./backend/alembic.ini:/app/alembic.ini
     depends_on:
       postgres:
         condition: service_healthy
@@ -217,7 +217,7 @@ services:
   marketplace_service:
     build:
       context: .
-      dockerfile: services/marketplace_service/Dockerfile
+      dockerfile: backend/services/marketplace_service/Dockerfile
     command: uvicorn services.marketplace_service.main:app --host 0.0.0.0 --port 8003 --reload
     ports:
       - "8003:8003"
@@ -233,8 +233,8 @@ services:
       HOST_SERVICE_URL: http://host_service:8002
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/marketplace_service:/app/services/marketplace_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/marketplace_service:/app/services/marketplace_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -246,7 +246,7 @@ services:
   marketplace_worker:
     build:
       context: .
-      dockerfile: services/marketplace_service/Dockerfile
+      dockerfile: backend/services/marketplace_service/Dockerfile
     command: >
       celery -A services.marketplace_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -258,8 +258,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/marketplace_service:/app/services/marketplace_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/marketplace_service:/app/services/marketplace_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -271,7 +271,7 @@ services:
   wallet_billing_service:
     build:
       context: .
-      dockerfile: services/wallet_billing_service/Dockerfile
+      dockerfile: backend/services/wallet_billing_service/Dockerfile
     command: uvicorn services.wallet_billing_service.main:app --host 0.0.0.0 --port 8004 --reload
     ports:
       - "8004:8004"
@@ -289,8 +289,8 @@ services:
       STRIPE_PUBLISHABLE_KEY: pk_test_REPLACE_WITH_YOUR_PUBLISHABLE_KEY
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/wallet_billing_service:/app/services/wallet_billing_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/wallet_billing_service:/app/services/wallet_billing_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -302,7 +302,7 @@ services:
   wallet_worker:
     build:
       context: .
-      dockerfile: services/wallet_billing_service/Dockerfile
+      dockerfile: backend/services/wallet_billing_service/Dockerfile
     command: >
       celery -A services.wallet_billing_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -316,8 +316,8 @@ services:
       STRIPE_WEBHOOK_SECRET: whsec_REPLACE_WITH_YOUR_WEBHOOK_SECRET
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/wallet_billing_service:/app/services/wallet_billing_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/wallet_billing_service:/app/services/wallet_billing_service
     depends_on:
       redis:
         condition: service_healthy
@@ -327,7 +327,7 @@ services:
   provisioning_service:
     build:
       context: .
-      dockerfile: services/provisioning_service/Dockerfile
+      dockerfile: backend/services/provisioning_service/Dockerfile
     ports:
       - "8005:8005"
     environment:
@@ -347,8 +347,8 @@ services:
       WIREGUARD_RELAY_HOST: relay.kynetic.ai
       WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
     volumes:
-      - ./libs:/app/libs
-      - ./services/provisioning_service:/app/services/provisioning_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/provisioning_service:/app/services/provisioning_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -364,7 +364,7 @@ services:
   provisioning_worker:
     build:
       context: .
-      dockerfile: services/provisioning_service/Dockerfile
+      dockerfile: backend/services/provisioning_service/Dockerfile
     command: >
       celery -A services.provisioning_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=4
@@ -384,8 +384,8 @@ services:
       WIREGUARD_RELAY_HOST: relay.kynetic.ai
       WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
     volumes:
-      - ./libs:/app/libs
-      - ./services/provisioning_service:/app/services/provisioning_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/provisioning_service:/app/services/provisioning_service
     depends_on:
       redis:
         condition: service_healthy
@@ -397,7 +397,7 @@ services:
   security_service:
     build:
       context: .
-      dockerfile: services/security_service/Dockerfile
+      dockerfile: backend/services/security_service/Dockerfile
     ports:
       - "8006:8006"
     environment:
@@ -413,8 +413,8 @@ services:
       JWT_SECRET_KEY: dev_secret_change_in_production_12345
       ADMIN_JWT_SECRET_KEY: dev_admin_secret_change_in_production
     volumes:
-      - ./libs:/app/libs
-      - ./services/security_service:/app/services/security_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/security_service:/app/services/security_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -430,7 +430,7 @@ services:
   security_worker:
     build:
       context: .
-      dockerfile: services/security_service/Dockerfile
+      dockerfile: backend/services/security_service/Dockerfile
     command: >
       celery -A services.security_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -448,8 +448,8 @@ services:
       JWT_SECRET_KEY: dev_secret_change_in_production_12345
       ADMIN_JWT_SECRET_KEY: dev_admin_secret_change_in_production
     volumes:
-      - ./libs:/app/libs
-      - ./services/security_service:/app/services/security_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/security_service:/app/services/security_service
     depends_on:
       redis:
         condition: service_healthy
@@ -461,7 +461,7 @@ services:
   ai_router_service:
     build:
       context: .
-      dockerfile: services/ai_router_copilot_service/Dockerfile
+      dockerfile: backend/services/ai_router_copilot_service/Dockerfile
     command: uvicorn services.ai_router_copilot_service.main:app --host 0.0.0.0 --port 8009 --reload
     ports:
       - "8009:8009"
@@ -478,8 +478,8 @@ services:
       ANTHROPIC_API_KEY: ""
       MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
     volumes:
-      - ./libs:/app/libs
-      - ./services/ai_router_copilot_service:/app/services/ai_router_copilot_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/ai_router_copilot_service:/app/services/ai_router_copilot_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -491,7 +491,7 @@ services:
   reputation_pricing_service:
     build:
       context: .
-      dockerfile: services/reputation_pricing_service/Dockerfile
+      dockerfile: backend/services/reputation_pricing_service/Dockerfile
     command: uvicorn services.reputation_pricing_service.main:app --host 0.0.0.0 --port 8010 --reload
     ports:
       - "8010:8010"
@@ -506,8 +506,8 @@ services:
       HOST_SERVICE_URL: http://host_service:8002
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/reputation_pricing_service:/app/services/reputation_pricing_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/reputation_pricing_service:/app/services/reputation_pricing_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -518,7 +518,7 @@ services:
   reputation_pricing_worker:
     build:
       context: .
-      dockerfile: services/reputation_pricing_service/Dockerfile
+      dockerfile: backend/services/reputation_pricing_service/Dockerfile
     command: >
       celery -A services.reputation_pricing_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -530,8 +530,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       USD_TO_INR_RATE: "84.0"
     volumes:
-      - ./libs:/app/libs
-      - ./services/reputation_pricing_service:/app/services/reputation_pricing_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/reputation_pricing_service:/app/services/reputation_pricing_service
     depends_on:
       redis:
         condition: service_healthy
@@ -543,7 +543,7 @@ services:
   notifications_service:
     build:
       context: .
-      dockerfile: services/notifications_service/Dockerfile
+      dockerfile: backend/services/notifications_service/Dockerfile
     command: uvicorn services.notifications_service.main:app --host 0.0.0.0 --port 8011 --reload
     ports:
       - "8011:8011"
@@ -560,8 +560,8 @@ services:
       SENDGRID_API_KEY: ""
       FROM_EMAIL: dev-noreply@kynetic.ai
     volumes:
-      - ./libs:/app/libs
-      - ./services/notifications_service:/app/services/notifications_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/notifications_service:/app/services/notifications_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -572,7 +572,7 @@ services:
   notifications_worker:
     build:
       context: .
-      dockerfile: services/notifications_service/Dockerfile
+      dockerfile: backend/services/notifications_service/Dockerfile
     command: >
       celery -A services.notifications_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -586,8 +586,8 @@ services:
       SENDGRID_API_KEY: ""
       FROM_EMAIL: dev-noreply@kynetic.ai
     volumes:
-      - ./libs:/app/libs
-      - ./services/notifications_service:/app/services/notifications_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/notifications_service:/app/services/notifications_service
     depends_on:
       redis:
         condition: service_healthy
@@ -597,7 +597,7 @@ services:
   monitoring_service:
     build:
       context: .
-      dockerfile: services/monitoring_service/Dockerfile
+      dockerfile: backend/services/monitoring_service/Dockerfile
     command: uvicorn services.monitoring_service.main:app --host 0.0.0.0 --port 8012 --reload
     ports:
       - "8012:8012"
@@ -608,8 +608,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: dev_secret_change_in_production_12345
     volumes:
-      - ./libs:/app/libs
-      - ./services/monitoring_service:/app/services/monitoring_service
+      - ./backend/libs:/app/libs
+      - ./backend/services/monitoring_service:/app/services/monitoring_service
     depends_on:
       postgres:
         condition: service_healthy

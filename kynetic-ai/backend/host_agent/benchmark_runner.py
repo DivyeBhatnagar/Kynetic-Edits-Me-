@@ -336,11 +336,84 @@ def run_flops_benchmark(matrix_size: int = 4096, duration_seconds: float = 10.0)
 
 
 # ---------------------------------------------------------------------------
+# Benchmark 4 — Disk I/O (read/write MB/s) & Score Tolerance Verification
+# ---------------------------------------------------------------------------
+def run_disk_io_benchmark(duration_seconds: float = 3.0) -> BenchmarkResult:
+    """Micro-benchmark measuring disk read/write throughput (MB/s)."""
+    import os
+    import tempfile
+    try:
+        data = os.urandom(10 * 1024 * 1024)  # 10 MB chunk
+        start = time.perf_counter()
+        written = 0
+        with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
+            tmp_name = tmp.name
+            while time.perf_counter() - start < (duration_seconds / 2):
+                tmp.write(data)
+                written += len(data)
+
+        write_elapsed = time.perf_counter() - start
+        write_mbps = (written / 1024 / 1024) / max(write_elapsed, 0.001)
+
+        start = time.perf_counter()
+        read_bytes = 0
+        with open(tmp_name, "rb") as f:
+            while time.perf_counter() - start < (duration_seconds / 2):
+                chunk = f.read(10 * 1024 * 1024)
+                if not chunk:
+                    f.seek(0)
+                    continue
+                read_bytes += len(chunk)
+
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+        read_elapsed = time.perf_counter() - start
+        read_mbps = (read_bytes / 1024 / 1024) / max(read_elapsed, 0.001)
+
+        raw = {
+            "write_mbps": round(write_mbps, 2),
+            "read_mbps": round(read_mbps, 2),
+            "total_written_mb": round(written / 1024 / 1024, 2),
+            "total_read_mb": round(read_bytes / 1024 / 1024, 2),
+        }
+        score = (write_mbps + read_mbps) / 2.0
+        return BenchmarkResult(
+            benchmark_type="disk_io",
+            score=score,
+            raw_metrics=raw,
+            checksum=_checksum(raw),
+        )
+    except Exception as exc:
+        logger.error("disk_io_benchmark_failed", error=str(exc))
+        return BenchmarkResult(
+            benchmark_type="disk_io",
+            score=0.0,
+            raw_metrics={"error": str(exc)},
+            checksum="",
+        )
+
+
+def verify_score_tolerance(current_score: float, baseline_score: float, max_drop_pct: float = 15.0) -> bool:
+    """
+    Validates if current benchmark score is within allowable tolerance of baseline.
+    Returns False if performance has degraded by more than max_drop_pct (e.g. thermal throttling).
+    """
+    if baseline_score <= 0:
+        return True
+    drop_pct = ((baseline_score - current_score) / baseline_score) * 100.0
+    if drop_pct > max_drop_pct:
+        logger.warning("benchmark.tolerance_degraded", baseline=baseline_score, current=current_score, drop_pct=round(drop_pct, 2))
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Run all benchmarks
 # ---------------------------------------------------------------------------
 def run_all_benchmarks(duration_per_benchmark: float = 10.0) -> list[BenchmarkResult]:
     """
-    Run all three benchmarks sequentially and return results.
+    Run all four benchmarks sequentially and return results.
     Called by the Host Agent after registration and on re-benchmark triggers.
     """
     logger.info("benchmark_suite_starting", duration_per_benchmark=duration_per_benchmark)
@@ -348,6 +421,7 @@ def run_all_benchmarks(duration_per_benchmark: float = 10.0) -> list[BenchmarkRe
         run_llm_inference_benchmark(duration_seconds=duration_per_benchmark),
         run_image_gen_benchmark(duration_seconds=duration_per_benchmark),
         run_flops_benchmark(duration_seconds=duration_per_benchmark),
+        run_disk_io_benchmark(duration_seconds=min(duration_per_benchmark, 3.0)),
     ]
     logger.info(
         "benchmark_suite_complete",

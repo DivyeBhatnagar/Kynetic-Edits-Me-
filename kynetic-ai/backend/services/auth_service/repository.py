@@ -16,7 +16,18 @@ import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from libs.db_models.user_models import AuditLog, PhoneOTP, RefreshToken, User, UserRole
+from libs.db_models.user_models import (
+    ApiToken,
+    AuditLog,
+    DeviceCode,
+    DeviceCodeStatus,
+    Event,
+    PhoneOTP,
+    RefreshToken,
+    Session,
+    User,
+    UserRole,
+)
 from services.auth_service.security import (
     generate_otp,
     hash_otp,
@@ -56,6 +67,35 @@ class AuditLogRepository:
         await self.session.flush()  # Get the ID without committing
         logger.debug("audit_log_created", action=action, actor_id=str(actor_id))
         return log
+
+
+# ---------------------------------------------------------------------------
+# Event Repository — append-only
+# ---------------------------------------------------------------------------
+class EventRepository:
+    """Append-only repository for the events table."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self,
+        event_type: str,
+        actor_id: uuid.UUID | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> Event:
+        event = Event(
+            actor_id=actor_id,
+            event_type=event_type,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id else None,
+            event_metadata=metadata,
+        )
+        self.session.add(event)
+        await self.session.flush()
+        return event
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +158,7 @@ class UserRepository:
 
 
 # ---------------------------------------------------------------------------
-# Refresh Token Repository
+# Refresh Token & Session Repository
 # ---------------------------------------------------------------------------
 class RefreshTokenRepository:
     def __init__(self, session: AsyncSession, audit_repo: AuditLogRepository) -> None:
@@ -140,6 +180,16 @@ class RefreshTokenRepository:
             ip_address=ip_address,
         )
         self.session.add(token)
+
+        # Also register in sessions table
+        user_session = Session(
+            user_id=user_id,
+            refresh_token_hash=hash_refresh_token(raw_token),
+            device_label=user_agent[:250] if user_agent else "CLI/Web Device",
+            expires_at=refresh_token_expires_at(),
+        )
+        self.session.add(user_session)
+
         await self.session.flush()
         return token
 
@@ -156,6 +206,14 @@ class RefreshTokenRepository:
     async def revoke(self, token: RefreshToken, actor_id: uuid.UUID) -> None:
         token.is_revoked = True
         token.revoked_at = datetime.now(UTC)
+
+        # Revoke session matching refresh_token_hash
+        await self.session.execute(
+            update(Session)
+            .where(Session.refresh_token_hash == token.token_hash, Session.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
+        )
+
         await self.audit.create(
             action="auth.refresh_token_revoked",
             actor_id=actor_id,
@@ -170,12 +228,72 @@ class RefreshTokenRepository:
             .where(RefreshToken.user_id == user_id, RefreshToken.is_revoked == False)  # noqa: E712
             .values(is_revoked=True, revoked_at=datetime.now(UTC))
         )
+        await self.session.execute(
+            update(Session)
+            .where(Session.user_id == user_id, Session.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
+        )
         await self.audit.create(
             action="auth.logout_all_tokens_revoked",
             actor_id=user_id,
             resource_type="user",
             resource_id=str(user_id),
         )
+
+
+# ---------------------------------------------------------------------------
+# Device Code Repository (RFC 8628)
+# ---------------------------------------------------------------------------
+class DeviceCodeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+        expires_in_seconds: int = 600,
+    ) -> DeviceCode:
+        import secrets
+        from datetime import timedelta
+
+        # Generate unique RFC 8628 codes
+        raw_device_code = secrets.token_urlsafe(32)
+        part1 = secrets.choice("BCDFGHJKLMNPQRSTVWXYZ") + secrets.choice("BCDFGHJKLMNPQRSTVWXYZ") + secrets.choice("23456789") + secrets.choice("23456789")
+        part2 = secrets.choice("BCDFGHJKLMNPQRSTVWXYZ") + secrets.choice("BCDFGHJKLMNPQRSTVWXYZ") + secrets.choice("23456789") + secrets.choice("23456789")
+        user_code = f"{part1}-{part2}"
+
+        code_record = DeviceCode(
+            device_code=raw_device_code,
+            user_code=user_code,
+            status=DeviceCodeStatus.PENDING,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
+        )
+        self.session.add(code_record)
+        await self.session.flush()
+        return code_record
+
+    async def get_by_device_code(self, device_code: str) -> DeviceCode | None:
+        result = await self.session.execute(
+            select(DeviceCode).where(DeviceCode.device_code == device_code)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_user_code(self, user_code: str) -> DeviceCode | None:
+        formatted_code = user_code.upper().strip()
+        result = await self.session.execute(
+            select(DeviceCode).where(DeviceCode.user_code == formatted_code)
+        )
+        return result.scalar_one_or_none()
+
+    async def approve(self, code_record: DeviceCode, user_id: uuid.UUID) -> None:
+        code_record.status = DeviceCodeStatus.APPROVED
+        code_record.user_id = user_id
+
+    async def deny(self, code_record: DeviceCode) -> None:
+        code_record.status = DeviceCodeStatus.DENIED
 
 
 # ---------------------------------------------------------------------------
@@ -221,3 +339,4 @@ class PhoneOTPRepository:
 
     async def increment_attempts(self, otp: "PhoneOTP") -> None:
         otp.attempts += 1
+

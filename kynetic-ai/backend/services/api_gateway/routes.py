@@ -125,8 +125,63 @@ async def proxy_auth_login(request: Request):
     tags=["Auth Proxy"],
     summary="Proxy: POST /auth/refresh → auth_service",
 )
+@gateway_router.api_route(
+    "/v1/auth/refresh",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /v1/auth/refresh → auth_service",
+)
 async def proxy_auth_refresh(request: Request):
-    return await _proxy_request(request, f"{settings.auth_service_url}/auth/refresh")
+    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/refresh")
+
+
+@gateway_router.api_route(
+    "/auth/device/code",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /auth/device/code → auth_service",
+)
+@gateway_router.api_route(
+    "/v1/auth/device/code",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /v1/auth/device/code → auth_service",
+)
+async def proxy_auth_device_code(request: Request):
+    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/code")
+
+
+@gateway_router.api_route(
+    "/auth/device/token",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /auth/device/token → auth_service",
+)
+@gateway_router.api_route(
+    "/v1/auth/device/token",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /v1/auth/device/token → auth_service",
+)
+async def proxy_auth_device_token(request: Request):
+    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/token")
+
+
+@gateway_router.api_route(
+    "/cli/version",
+    methods=["GET"],
+    tags=["CLI Proxy"],
+    summary="Proxy: GET /cli/version → auth_service",
+)
+@gateway_router.api_route(
+    "/v1/cli/version",
+    methods=["GET"],
+    tags=["CLI Proxy"],
+    summary="Proxy: GET /v1/cli/version → auth_service",
+)
+async def proxy_cli_version(request: Request):
+    return await _proxy_request(request, f"{settings.auth_service_url}/v1/cli/version")
+
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +205,23 @@ async def proxy_auth_logout(request: Request, _: dict = Depends(require_auth)):
 )
 async def proxy_auth_me(request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(request, f"{settings.auth_service_url}/auth/me")
+
+
+@gateway_router.api_route(
+    "/auth/device/verify",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /auth/device/verify → auth_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/auth/device/verify",
+    methods=["POST"],
+    tags=["Auth Proxy"],
+    summary="Proxy: POST /v1/auth/device/verify → auth_service (protected)",
+)
+async def proxy_auth_device_verify(request: Request, _: dict = Depends(require_auth)):
+    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/verify")
+
 
 
 @gateway_router.api_route(
@@ -181,6 +253,12 @@ async def proxy_phone_verify_otp(request: Request, _: dict = Depends(require_aut
     tags=["Host Proxy"],
     summary="Proxy: POST /hosts/register → host_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/hosts/register",
+    methods=["POST"],
+    tags=["Host Proxy"],
+    summary="Proxy: POST /v1/hosts/register → host_service (protected)",
+)
 async def proxy_hosts_register(request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(request, f"{settings.host_service_url}/hosts/register")
 
@@ -190,6 +268,12 @@ async def proxy_hosts_register(request: Request, _: dict = Depends(require_auth)
     methods=["POST"],
     tags=["Host Proxy"],
     summary="Proxy: POST /hosts/heartbeat → host_service (no JWT — mTLS authenticated)",
+)
+@gateway_router.api_route(
+    "/v1/hosts/heartbeat",
+    methods=["POST"],
+    tags=["Host Proxy"],
+    summary="Proxy: POST /v1/hosts/heartbeat → host_service (no JWT — mTLS authenticated)",
 )
 async def proxy_hosts_heartbeat(request: Request):
     # Heartbeat uses mTLS client cert, not JWT — auth handled by host_service
@@ -202,6 +286,12 @@ async def proxy_hosts_heartbeat(request: Request):
     tags=["Host Proxy"],
     summary="Proxy: GET /hosts/{host_id} → host_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/hosts/{host_id}",
+    methods=["GET"],
+    tags=["Host Proxy"],
+    summary="Proxy: GET /v1/hosts/{host_id} → host_service (protected)",
+)
 async def proxy_hosts_get(host_id: str, request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(request, f"{settings.host_service_url}/hosts/{host_id}")
 
@@ -211,6 +301,12 @@ async def proxy_hosts_get(host_id: str, request: Request, _: dict = Depends(requ
     methods=["GET", "POST"],
     tags=["Host Proxy"],
     summary="Proxy: /hosts/{host_id}/benchmarks → host_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/hosts/{host_id}/benchmarks",
+    methods=["GET", "POST"],
+    tags=["Host Proxy"],
+    summary="Proxy: /v1/hosts/{host_id}/benchmarks → host_service (protected)",
 )
 async def proxy_host_benchmarks(host_id: str, request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(
@@ -224,11 +320,55 @@ async def proxy_host_benchmarks(host_id: str, request: Request, _: dict = Depend
     tags=["Host Proxy"],
     summary="Proxy: POST /hosts/{host_id}/benchmarks/rerun → host_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/hosts/{host_id}/benchmarks/rerun",
+    methods=["POST"],
+    tags=["Host Proxy"],
+    summary="Proxy: POST /v1/hosts/{host_id}/benchmarks/rerun → host_service (protected)",
+)
 async def proxy_host_benchmarks_rerun(
     host_id: str, request: Request, _: dict = Depends(require_auth)
 ):
     return await _proxy_request(
         request, f"{settings.host_service_url}/hosts/{host_id}/benchmarks/rerun"
+    )
+
+
+@gateway_router.api_route(
+    "/hosts/agent/releases/latest",
+    methods=["GET"],
+    tags=["Host Proxy"],
+    summary="Proxy: GET /hosts/agent/releases/latest → host_service (public)",
+)
+@gateway_router.api_route(
+    "/v1/hosts/agent/releases/latest",
+    methods=["GET"],
+    tags=["Host Proxy"],
+    summary="Proxy: GET /v1/hosts/agent/releases/latest → host_service (public)",
+)
+async def proxy_agent_latest_release(request: Request):
+    return await _proxy_request(
+        request, f"{settings.host_service_url}/hosts/agent/releases/latest"
+    )
+
+
+@gateway_router.api_route(
+    "/hosts/{host_id}/health",
+    methods=["GET"],
+    tags=["Host Proxy"],
+    summary="Proxy: GET /hosts/{host_id}/health → host_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/hosts/{host_id}/health",
+    methods=["GET"],
+    tags=["Host Proxy"],
+    summary="Proxy: GET /v1/hosts/{host_id}/health → host_service (protected)",
+)
+async def proxy_host_health(
+    host_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request, f"{settings.host_service_url}/hosts/{host_id}/health"
     )
 
 
@@ -241,8 +381,31 @@ async def proxy_host_benchmarks_rerun(
     tags=["Marketplace Proxy"],
     summary="Proxy: POST /listings → marketplace_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/listings",
+    methods=["POST"],
+    tags=["Marketplace Proxy"],
+    summary="Proxy: POST /v1/listings → marketplace_service (protected)",
+)
 async def proxy_listings_create(request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(request, f"{settings.marketplace_service_url}/listings")
+
+
+@gateway_router.api_route(
+    "/listings",
+    methods=["GET"],
+    tags=["Marketplace Proxy"],
+    summary="Proxy: GET /listings → marketplace_service (public read)",
+)
+@gateway_router.api_route(
+    "/v1/listings",
+    methods=["GET"],
+    tags=["Marketplace Proxy"],
+    summary="Proxy: GET /v1/listings → marketplace_service (public read)",
+)
+async def proxy_listings_search(request: Request):
+    return await _proxy_request(request, f"{settings.marketplace_service_url}/listings")
+
 
 
 @gateway_router.api_route(
@@ -356,6 +519,12 @@ async def proxy_stripe_webhook(request: Request):
     tags=["Provisioning Proxy"],
     summary="Proxy: POST /instances → provisioning_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/instances",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /v1/instances → provisioning_service (protected)",
+)
 async def proxy_instances_launch(request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(
         request, f"{settings.provisioning_service_url}/v1/instances"
@@ -368,6 +537,12 @@ async def proxy_instances_launch(request: Request, _: dict = Depends(require_aut
     tags=["Provisioning Proxy"],
     summary="Proxy: GET /instances → provisioning_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/instances",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /v1/instances → provisioning_service (protected)",
+)
 async def proxy_instances_list(request: Request, _: dict = Depends(require_auth)):
     return await _proxy_request(
         request, f"{settings.provisioning_service_url}/v1/instances"
@@ -379,6 +554,12 @@ async def proxy_instances_list(request: Request, _: dict = Depends(require_auth)
     methods=["GET"],
     tags=["Provisioning Proxy"],
     summary="Proxy: GET /instances/{id} → provisioning_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /v1/instances/{id} → provisioning_service (protected)",
 )
 async def proxy_instance_get(
     instance_id: str, request: Request, _: dict = Depends(require_auth)
@@ -394,6 +575,12 @@ async def proxy_instance_get(
     tags=["Provisioning Proxy"],
     summary="Proxy: POST /instances/{id}/stop → provisioning_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}/stop",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /v1/instances/{id}/stop → provisioning_service (protected)",
+)
 async def proxy_instance_stop(
     instance_id: str, request: Request, _: dict = Depends(require_auth)
 ):
@@ -408,6 +595,12 @@ async def proxy_instance_stop(
     tags=["Provisioning Proxy"],
     summary="Proxy: POST /instances/{id}/start → provisioning_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}/start",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /v1/instances/{id}/start → provisioning_service (protected)",
+)
 async def proxy_instance_start(
     instance_id: str, request: Request, _: dict = Depends(require_auth)
 ):
@@ -421,6 +614,12 @@ async def proxy_instance_start(
     methods=["POST"],
     tags=["Provisioning Proxy"],
     summary="Proxy: POST /instances/{id}/terminate → provisioning_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}/terminate",
+    methods=["POST"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: POST /v1/instances/{id}/terminate → provisioning_service (protected)",
 )
 async def proxy_instance_terminate(
     instance_id: str, request: Request, _: dict = Depends(require_auth)
@@ -437,6 +636,12 @@ async def proxy_instance_terminate(
     tags=["Provisioning Proxy"],
     summary="Proxy: GET /instances/{id}/connection → provisioning_service (protected)",
 )
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}/connection",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /v1/instances/{id}/connection → provisioning_service (protected)",
+)
 async def proxy_instance_connection(
     instance_id: str, request: Request, _: dict = Depends(require_auth)
 ):
@@ -451,6 +656,12 @@ async def proxy_instance_connection(
     methods=["GET"],
     tags=["Provisioning Proxy"],
     summary="Proxy: GET /instances/{id}/deletion-receipt → provisioning_service (protected)",
+)
+@gateway_router.api_route(
+    "/v1/instances/{instance_id}/deletion-receipt",
+    methods=["GET"],
+    tags=["Provisioning Proxy"],
+    summary="Proxy: GET /v1/instances/{id}/deletion-receipt → provisioning_service (protected)",
 )
 async def proxy_instance_deletion_receipt(
     instance_id: str, request: Request, _: dict = Depends(require_auth)

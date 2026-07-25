@@ -50,6 +50,20 @@ class VerifyOTPRequest(BaseModel):
     otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
+class DeviceCodeRequest(BaseModel):
+    client_id: str | None = "kynetic-cli"
+    scope: str | None = "full"
+
+
+class DeviceTokenRequest(BaseModel):
+    device_code: str = Field(min_length=1)
+    grant_type: str = Field(default="urn:ietf:params:oauth:grant-type:device_code")
+
+
+class DeviceVerifyRequest(BaseModel):
+    user_code: str = Field(min_length=8, max_length=10)
+
+
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
@@ -73,6 +87,23 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+class DeviceCodeResponse(BaseModel):
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str
+    expires_in: int = 600
+    interval: int = 5
+
+
+class CliVersionResponse(BaseModel):
+    version: str
+    min_supported_version: str
+    download_url: str
+    release_notes: str
+
+
 class MessageResponse(BaseModel):
     message: str
     success: bool = True
+

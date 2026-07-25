@@ -27,7 +27,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from libs.db_models.database import Base
 
@@ -116,6 +116,28 @@ class Instance(Base):
     hold_released: Mapped[bool] = mapped_column(
         default=False, nullable=False,
         comment="True once hold has been refunded on termination"
+    )
+
+    # ── Resource Allocation ───────────────────────────────────────────────
+    image: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="ubuntu:22.04",
+        comment="Base OCI image tag"
+    )
+    cpu_allocated: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=2
+    )
+    ram_gb_allocated: Mapped[float] = mapped_column(
+        Numeric(10, 2), nullable=False, default=4.0
+    )
+    gpu_allocated: Mapped[str | None] = mapped_column(
+        String(200), nullable=True
+    )
+    vram_gb_allocated: Mapped[float | None] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
+    workspace_path: Mapped[str | None] = mapped_column(
+        String(500), nullable=True,
+        comment="Local workspace volume path on host machine"
     )
 
     # ── Agent info ─────────────────────────────────────────────────────────
@@ -278,3 +300,26 @@ class SecureDeletionReceipt(Base):
         Text,
         comment="Raw JSON from agent /agent/verify_deletion response"
     )
+
+
+class InstanceEvent(Base):
+    """
+    Audit trail for instance lifecycle state changes and provisioning events.
+    """
+    __tablename__ = "instance_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    instance_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("instances.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+

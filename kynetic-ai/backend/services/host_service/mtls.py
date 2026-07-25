@@ -76,7 +76,7 @@ def issue_client_certificate(
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Kynetic AI"),
         x509.NameAttribute(
             NameOID.COMMON_NAME,
-            f"host:{host_id}:user:{user_id}",
+            f"host:{host_id}",
         ),
     ])
     cert = (

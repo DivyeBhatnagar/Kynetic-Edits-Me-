@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Enum,
     Float,
@@ -71,6 +72,23 @@ class DiskType(str, enum.Enum):
 
 
 # ---------------------------------------------------------------------------
+# Regions
+# ---------------------------------------------------------------------------
+class Region(Base):
+    __tablename__ = "regions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    country_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    latency_pop_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+# ---------------------------------------------------------------------------
 # Hosts
 # ---------------------------------------------------------------------------
 class Host(Base):
@@ -87,6 +105,12 @@ class Host(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    region_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("regions.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     status: Mapped[HostStatus] = mapped_column(
@@ -128,9 +152,103 @@ class Host(Base):
     heartbeats: Mapped[list["HostHeartbeat"]] = relationship(
         "HostHeartbeat", back_populates="host"
     )
+    machines: Mapped[list["Machine"]] = relationship(
+        "Machine", back_populates="host", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Host id={self.id} status={self.status} os={self.os_type}>"
+
+
+# ---------------------------------------------------------------------------
+# Section 5 Physical Hardware Models: Machine, GPU, CPUSpec, RAMSpec, StorageSpec
+# ---------------------------------------------------------------------------
+class Machine(Base):
+    __tablename__ = "machines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    public_ip_hint: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    host: Mapped["Host"] = relationship("Host", back_populates="machines")
+    gpus: Mapped[list["GPU"]] = relationship("GPU", back_populates="machine", cascade="all, delete-orphan")
+    cpu_spec: Mapped["CPUSpec | None"] = relationship("CPUSpec", back_populates="machine", uselist=False, cascade="all, delete-orphan")
+    ram_spec: Mapped["RAMSpec | None"] = relationship("RAMSpec", back_populates="machine", uselist=False, cascade="all, delete-orphan")
+    storage_specs: Mapped[list["StorageSpec"]] = relationship("StorageSpec", back_populates="machine", cascade="all, delete-orphan")
+
+
+class GPU(Base):
+    __tablename__ = "gpus"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    machine_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    model: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    vram_gb: Mapped[float] = mapped_column(Float, nullable=False)
+    driver_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cuda_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    benchmark_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cc_capable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    cc_mode_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    machine: Mapped["Machine"] = relationship("Machine", back_populates="gpus")
+
+
+class CPUSpec(Base):
+    __tablename__ = "cpu_specs"
+
+    machine_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("machines.id", ondelete="CASCADE"), primary_key=True
+    )
+    cores: Mapped[int] = mapped_column(Integer, nullable=False)
+    threads: Mapped[int] = mapped_column(Integer, nullable=False)
+    model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    clock_ghz: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    machine: Mapped["Machine"] = relationship("Machine", back_populates="cpu_spec")
+
+
+class RAMSpec(Base):
+    __tablename__ = "ram_specs"
+
+    machine_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("machines.id", ondelete="CASCADE"), primary_key=True
+    )
+    total_gb: Mapped[float] = mapped_column(Float, nullable=False)
+    ram_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    speed_mhz: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    machine: Mapped["Machine"] = relationship("Machine", back_populates="ram_spec")
+
+
+class StorageSpec(Base):
+    __tablename__ = "storage_specs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    machine_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    disk_type: Mapped[DiskType] = mapped_column(
+        Enum(DiskType, name="disk_type"), nullable=False, default=DiskType.UNKNOWN
+    )
+    capacity_gb: Mapped[float] = mapped_column(Float, nullable=False)
+
+    machine: Mapped["Machine"] = relationship("Machine", back_populates="storage_specs")
+
 
 
 # ---------------------------------------------------------------------------

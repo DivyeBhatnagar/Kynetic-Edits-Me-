@@ -28,19 +28,19 @@ from services.host_service.config import get_settings
 logger = get_task_logger(__name__)
 settings = get_settings()
 
-# Synchronous engine for Celery tasks (Celery workers are sync)
 _SYNC_DB_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://kynetic:kynetic@localhost:5432/kynetic",
-).replace("+asyncpg", "")  # Strip asyncpg for sync engine
+).replace("+asyncpg", "").replace("+aiosqlite", "")
 
-sync_engine = create_engine(
-    _SYNC_DB_URL,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
+_engine_kwargs = {} if "sqlite" in _SYNC_DB_URL else {
+    "pool_size": 5,
+    "max_overflow": 10,
+    "pool_pre_ping": True,
+    "pool_recycle": 3600,
+}
+
+sync_engine = create_engine(_SYNC_DB_URL, **_engine_kwargs)
 SyncSession = sessionmaker(sync_engine, expire_on_commit=False)
 
 

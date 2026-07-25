@@ -195,6 +195,7 @@ def _start_running(config: AgentConfig, token: str | None) -> None:
         token = os.environ.get("KYNETIC_AUTH_TOKEN", "")
 
     client = KyneticAgentClient(config=config, auth_token=token)
+    reconcile_host_instances()
     client.start_heartbeat_loop()
     client.listen_for_rebenchmark()
 
@@ -205,6 +206,97 @@ def _start_running(config: AgentConfig, token: str | None) -> None:
     except KeyboardInterrupt:
         client.stop_heartbeat_loop()
         print("\n  Agent stopped.")
+
+
+# ---------------------------------------------------------------------------
+# Host Agent Provisioning Server (FastAPI HTTP Server)
+# ---------------------------------------------------------------------------
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+from host_agent.firecracker import FirecrackerVM
+from host_agent.volume_manager import VolumeManager
+from host_agent.idempotency_store import (
+    save_instance_state,
+    remove_instance_state,
+    reconcile_host_instances,
+)
+
+provisioning_app = FastAPI(title="Kynetic Host Agent Provisioning API", version=AGENT_VERSION)
+
+
+class AgentProvisionRequest(BaseModel):
+    instance_id: uuid.UUID
+    image: str = "ubuntu:22.04"
+    vcpus: int = 2
+    mem_mib: int = 4096
+    ssh_public_key: str = ""
+    gpu_requested: bool = False
+
+
+class AgentActionRequest(BaseModel):
+    instance_id: uuid.UUID
+
+
+@provisioning_app.post("/agent/provision", status_code=status.HTTP_201_CREATED)
+async def provision_instance(body: AgentProvisionRequest):
+    vm = FirecrackerVM(body.instance_id)
+    vm_result = vm.create(
+        vcpus=body.vcpus,
+        mem_mib=body.mem_mib,
+        ssh_public_key=body.ssh_public_key,
+    )
+
+    vol = VolumeManager(body.instance_id)
+    mapped_vol = vol.allocate(size_gb=50)
+
+    state = {
+        "instance_id": str(body.instance_id),
+        "vm_id": vm_result.get("vm_id"),
+        "container_id": vm_result.get("container_id"),
+        "mapped_vol": mapped_vol,
+        "status": "running",
+    }
+    save_instance_state(str(body.instance_id), state)
+
+    return {
+        "status": "running",
+        "firecracker_vm_id": vm_result.get("vm_id"),
+        "container_id": vm_result.get("container_id"),
+        "workspace_path": mapped_vol,
+    }
+
+
+@provisioning_app.post("/agent/stop")
+async def stop_instance(body: AgentActionRequest):
+    vm = FirecrackerVM(body.instance_id)
+    res = vm.stop()
+    return {"status": "stopped", "vm_id": res.get("vm_id")}
+
+
+@provisioning_app.post("/agent/terminate")
+async def terminate_instance(body: AgentActionRequest):
+    vm = FirecrackerVM(body.instance_id)
+    vm.terminate()
+
+    vol = VolumeManager(body.instance_id)
+    shred_result = vol.shred()
+    remove_instance_state(str(body.instance_id))
+
+    return {
+        "status": "terminated",
+        "deletion_receipt": {
+            "instance_id": str(body.instance_id),
+            "method": shred_result["method"],
+            "agent_confirmation_hash": shred_result["confirmation_hash"],
+            "agent_payload": shred_result["payload"],
+        },
+    }
+
+
+@provisioning_app.get("/agent/verify_deletion/{instance_id}")
+async def verify_deletion(instance_id: uuid.UUID):
+    vol = VolumeManager(instance_id)
+    return vol.verify()
 
 
 # ---------------------------------------------------------------------------

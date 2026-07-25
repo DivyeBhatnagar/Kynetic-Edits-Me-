@@ -24,11 +24,18 @@ from libs.db_models.database import get_db_session
 from services.auth_service.config import get_settings
 from services.auth_service.repository import (
     AuditLogRepository,
+    DeviceCodeRepository,
+    EventRepository,
     PhoneOTPRepository,
     RefreshTokenRepository,
     UserRepository,
 )
 from services.auth_service.schemas import (
+    CliVersionResponse,
+    DeviceCodeRequest,
+    DeviceCodeResponse,
+    DeviceTokenRequest,
+    DeviceVerifyRequest,
     LoginRequest,
     MessageResponse,
     RefreshRequest,
@@ -51,6 +58,7 @@ logger = structlog.get_logger(__name__)
 auth_router = APIRouter()
 bearer_scheme = HTTPBearer(auto_error=False)
 settings = get_settings()
+
 
 
 # ---------------------------------------------------------------------------
@@ -385,3 +393,176 @@ async def verify_phone_otp(
 
     logger.info("phone_verified", user_id=str(user_id), phone=body.phone_number)
     return MessageResponse(message="Phone number verified successfully.")
+
+
+# ---------------------------------------------------------------------------
+# Device Code Authorization Grant (RFC 8628)
+# ---------------------------------------------------------------------------
+@auth_router.post("/device/code", response_model=DeviceCodeResponse, tags=["Device Auth"])
+async def create_device_code(
+    body: DeviceCodeRequest | None = None,
+    request: Request = None,
+    session: AsyncSession = Depends(get_db_session),
+) -> DeviceCodeResponse:
+    """Initiates OAuth2 Device Authorization Grant for CLI login."""
+    device_repo = DeviceCodeRepository(session)
+    event_repo = EventRepository(session)
+
+    ip = request.client.host if request and request.client else None
+    ua = request.headers.get("User-Agent") if request else None
+
+    record = await device_repo.create(user_agent=ua, ip_address=ip, expires_in_seconds=600)
+    await event_repo.create(
+        event_type="auth.device_code_requested",
+        resource_type="device_code",
+        resource_id=record.device_code,
+        metadata={"user_code": record.user_code, "ip": ip},
+    )
+
+    host_base = str(request.base_url).rstrip("/") if request else "http://localhost:8000"
+    verification_uri = f"{host_base}/auth/device/verify"
+    verification_uri_complete = f"{verification_uri}?user_code={record.user_code}"
+
+    return DeviceCodeResponse(
+        device_code=record.device_code,
+        user_code=record.user_code,
+        verification_uri=verification_uri,
+        verification_uri_complete=verification_uri_complete,
+        expires_in=600,
+        interval=5,
+    )
+
+
+@auth_router.post("/device/token", tags=["Device Auth"])
+async def poll_device_token(
+    body: DeviceTokenRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    CLI polls this endpoint with device_code until the user approves in browser.
+    Follows RFC 8628 error responses: authorization_pending, expired_token, access_denied.
+    """
+    from datetime import UTC, datetime
+    from libs.db_models.user_models import DeviceCodeStatus
+
+    audit_repo = AuditLogRepository(session)
+    device_repo = DeviceCodeRepository(session)
+    user_repo = UserRepository(session, audit_repo)
+    refresh_repo = RefreshTokenRepository(session, audit_repo)
+
+    record = await device_repo.get_by_device_code(body.device_code)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "invalid_grant", "error_description": "Invalid device code."},
+        )
+
+    now_time = datetime.now(UTC).replace(tzinfo=None) if record.expires_at.tzinfo is None else datetime.now(UTC)
+    if record.expires_at < now_time or record.status == DeviceCodeStatus.EXPIRED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "expired_token", "error_description": "The device code has expired. Please run 'kynetic login' again."},
+        )
+
+    if record.status == DeviceCodeStatus.DENIED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "access_denied", "error_description": "The end user denied the authorization request."},
+        )
+
+    if record.status == DeviceCodeStatus.PENDING or not record.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "authorization_pending", "error_description": "The authorization request is pending user approval."},
+        )
+
+    # Approved: issue token pair
+    user = await user_repo.get_by_id(record.user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_grant", "error_description": "User account is inactive or not found."},
+        )
+
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("User-Agent")
+
+    access_token = create_access_token(user.id, user.role.value)
+    raw_refresh, _ = generate_refresh_token()
+    await refresh_repo.create(user.id, raw_refresh, user_agent=ua, ip_address=ip)
+
+    event_repo = EventRepository(session)
+    await event_repo.create(
+        event_type="auth.device_login_success",
+        actor_id=user.id,
+        resource_type="device_code",
+        resource_id=record.device_code,
+        metadata={"ip": ip, "user_agent": ua},
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh,
+        expires_in=settings.access_token_expire_minutes * 60,
+        user=UserResponse.model_validate(user),
+    )
+
+
+@auth_router.post("/device/verify", response_model=MessageResponse, tags=["Device Auth"])
+async def verify_device_code(
+    body: DeviceVerifyRequest,
+    current_user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db_session),
+) -> MessageResponse:
+    """User authorizes a device code using the user_code displayed on the CLI."""
+    import uuid as _uuid
+    from datetime import UTC, datetime
+    from libs.db_models.user_models import DeviceCodeStatus
+
+    device_repo = DeviceCodeRepository(session)
+    event_repo = EventRepository(session)
+
+    user_id = _uuid.UUID(current_user_id)
+    record = await device_repo.get_by_user_code(body.user_code)
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid user code. Please check the code shown in your terminal.",
+        )
+
+    now_time = datetime.now(UTC).replace(tzinfo=None) if record.expires_at.tzinfo is None else datetime.now(UTC)
+    if record.expires_at < now_time or record.status == DeviceCodeStatus.EXPIRED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This user code has expired. Please run 'kynetic login' again on your device.",
+        )
+
+    if record.status == DeviceCodeStatus.APPROVED:
+        return MessageResponse(message="Device has already been authorized.")
+
+    await device_repo.approve(record, user_id)
+    await event_repo.create(
+        event_type="auth.device_code_approved",
+        actor_id=user_id,
+        resource_type="device_code",
+        resource_id=record.device_code,
+        metadata={"user_code": record.user_code},
+    )
+
+    logger.info("device_code_approved", user_id=current_user_id, user_code=body.user_code)
+    return MessageResponse(message="Device authorized successfully! You may return to your terminal.")
+
+
+@auth_router.get("/cli/version", response_model=CliVersionResponse, tags=["CLI"])
+async def get_cli_version() -> CliVersionResponse:
+    """Returns the latest CLI version information."""
+    return CliVersionResponse(
+        version="1.0.0",
+        min_supported_version="1.0.0",
+        download_url="https://github.com/kynetic-ai/kynetic/releases/latest",
+        release_notes="Kynetic CLI v1.0.0 Phase A Initial Release",
+    )
+
+

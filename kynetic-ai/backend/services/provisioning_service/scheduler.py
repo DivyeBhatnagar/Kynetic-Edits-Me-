@@ -215,3 +215,53 @@ async def schedule_instance(
         host_id=str(host_id),
     )
     return instance.id
+
+
+def rank_hosts_6factor(
+    candidates: list[dict],
+    preference: str = "balanced",
+) -> list[dict]:
+    """
+    Weighted 6-Factor Scheduler Ranking Algorithm (§9):
+    1. Price score (30%)
+    2. Benchmark/FLOPS score (25%)
+    3. Reputation score (20%)
+    4. Latency score (15%)
+    5. Availability score (10%)
+    + 5% anti-starvation randomization jitter
+
+    Preferences: 'balanced' | 'budget' (price 50%) | 'fastest' (benchmark 50%)
+    """
+    import random
+
+    if preference == "budget":
+        w_price, w_bench, w_rep, w_lat, w_avail = 0.50, 0.15, 0.15, 0.10, 0.10
+    elif preference == "fastest":
+        w_price, w_bench, w_rep, w_lat, w_avail = 0.15, 0.50, 0.15, 0.10, 0.10
+    else:  # balanced
+        w_price, w_bench, w_rep, w_lat, w_avail = 0.30, 0.25, 0.20, 0.15, 0.10
+
+    ranked = []
+    for h in candidates:
+        price_norm = float(h.get("price_score", 1.0))
+        bench_norm = float(h.get("benchmark_score", 0.5))
+        rep_norm = float(h.get("reputation_score", 80.0)) / 100.0
+        lat_norm = float(h.get("latency_score", 0.8))
+        avail_norm = 1.0 if h.get("is_available", True) else 0.0
+
+        jitter = random.uniform(0.0, 0.05)  # 5% anti-starvation jitter
+
+        total_score = (
+            (w_price * price_norm) +
+            (w_bench * bench_norm) +
+            (w_rep * rep_norm) +
+            (w_lat * lat_norm) +
+            (w_avail * avail_norm) +
+            jitter
+        )
+        h_copy = dict(h)
+        h_copy["final_score"] = round(total_score, 4)
+        ranked.append(h_copy)
+
+    ranked.sort(key=lambda x: x["final_score"], reverse=True)
+    return ranked

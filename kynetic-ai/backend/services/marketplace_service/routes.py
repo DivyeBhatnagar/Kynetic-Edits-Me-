@@ -17,7 +17,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from libs.common.database import get_db_session
+from libs.db_models.database import get_db_session
 from services.marketplace_service import availability as avail
 from services.marketplace_service.config import get_settings
 from services.marketplace_service.repository import ListingRepository

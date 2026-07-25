@@ -155,6 +155,19 @@ Kynetic AI is a **Cloud Computer Marketplace** engineered under one non-negotiab
 
 ## 📜 PART 2: v6 Production Engineering Specification (Phases A – L)
 
+> **What Version 6 Was About:**
+> 
+> Version 6 (**Implementation Plan v6**) transformed Kynetic AI from a standard web-managed cloud platform into a **CLI-first, 100% Python native cloud computer marketplace runtime**. Guided by the non-negotiable principle *"Does this make the rented machine feel more like the developer's own computer?"*, v6 focused entirely on eliminating friction between a developer's local terminal and remote GPU/CPU compute:
+> 
+> 1. **Terminal as the Primary Product**: Built a 100% Python CLI (`kynetic-cli`) supporting browser-based OAuth2 device authorization (`kynetic login`), instance lifecycle controls (`launch`, `stop`, `terminate`), interactive raw PTY shell sessions (`connect`), resumable chunked file transfers (`cp`), port forwarding (`tunnel`), and automated `~/.ssh/config` injection (`ssh`).
+> 2. **NAT-Traversing Edge Gateway Relay**: Solved the single hardest networking problem — connecting developers to stranger-hosted machines behind residential NAT and firewalls with zero open inbound ports, zero static IPs, and zero port-forwarding configuration. Both CLI and Host Agent dial *outbound* to the Gateway.
+> 3. **PTY Shell Multiplexing & Reconnect Resilience**: Streamed raw pseudo-terminal bytes (`pty.openpty()`) over multiplexed WebSocket tunnels with silent auto-reconnect on transient Wi-Fi drops.
+> 4. **Weighted 6-Factor Scheduler (§9)**: Implemented an intelligent host selection engine ranking candidates by Price (30%), FLOPS/Benchmark score (25%), Host Reputation (20%), Latency (15%), Availability (10%), plus a 5% anti-starvation randomization jitter band.
+> 5. **Per-Second Billing & Zero-Balance Auto-Termination**: Added real-time per-second wallet metering against an append-only financial ledger, automatically terminating running instances if wallet balances hit $0.00 to prevent unpaid compute drain.
+> 6. **Security & Trust Layer**: Implemented Progressive Trust Tiers (`Tier 1` to `Tier 3`), client device fingerprinting, platform emergency kill switch (`POST /v1/security/kill-switch`), and Host Agent cryptomining abuse detection.
+
+---
+
 ### PHASE A — Platform Foundations & CLI Auth (`kynetic login`)
 - **OAuth2 Device Authorization Grant**: Implemented device code grant flow (`POST /v1/auth/device/code`, `POST /v1/auth/device/token`, `POST /v1/auth/device/verify`) for browser-based login from headless terminals.
 - **100% Python CLI Framework (`cli/kynetic_cli`)**: Built using `Click`, `Rich`, `httpx`, `Pydantic V2`, and `keyring` for secure OS credential storage (`~/.kynetic/credentials`).

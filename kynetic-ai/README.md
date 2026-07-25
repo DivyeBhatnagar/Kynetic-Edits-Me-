@@ -2,7 +2,7 @@
 
 > **The terminal, not the browser, is the product.**
 
-Kynetic AI connects compute hosts (datacenter servers, idle mining rigs, gaming PCs) with developers who need high-performance GPU/CPU Linux compute right now. Kynetic delivers raw, unmediated terminal access (`kynetic connect`) to a remote Linux machine in seconds — with no notebooks, no web IDE, and zero configuration of firewalls, security groups, or IP addresses.
+Kynetic AI connects compute hosts (datacenter servers, idle mining rigs, gaming PCs) with developers who need high-performance GPU/CPU Linux compute right now. Kynetic delivers raw, unmediated terminal access (`kynetic connect` / `kynetic launch`) to a remote Linux machine in seconds — with no notebooks, no web IDE, and zero configuration of firewalls, security groups, or IP addresses.
 
 ---
 
@@ -30,32 +30,40 @@ Kynetic is built on a 5-plane decoupled architecture operating on a **100% Pytho
 ```
 
 ### Deployable Planes
-1. **Control Plane** — Asynchronous FastAPI microservices for Auth, Marketplace, Provisioning, Billing, Security, and Scheduling.
-2. **Data Plane** — PostgreSQL (source of truth), Redis (Pub/Sub event bus, rate limiting, session cache), and Loki (structured log aggregation).
+1. **Control Plane** — Asynchronous FastAPI microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`).
+2. **Data Plane** — PostgreSQL (source of truth), Redis (Pub/Sub event bus, rate limiting, session cache, denormalized search index), and Loki (structured log aggregation).
 3. **Edge Plane (Tunnel Gateway)** — NAT-traversing reverse-dial WebSocket relay cluster that terminates developer PTY streams and host connections without open inbound ports on the host.
-4. **Host Plane (Host Agent)** — Cross-platform Python daemon running on rented compute nodes, managing hardware discovery, NVML telemetry, Firecracker MicroVM containers, and DoD 3-pass storage shredding.
-5. **Client Plane (CLI)** — 100% Python CLI (`kynetic-cli`) providing a native, instant developer experience (`login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`).
+4. **Host Plane (Host Agent)** — Cross-Platform Python daemon running on rented compute nodes, managing hardware discovery, NVML telemetry, FP16/FP32 TFLOPS benchmarking, Firecracker MicroVM containers, WireGuard relays, and DoD 3-pass storage shredding.
+5. **Client Plane (CLI)** — 100% Python CLI (`kynetic-cli`) providing an instant developer experience (`login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`, `stop`, `terminate`).
 
 ---
 
 ## 🚀 Key Features
 
-### 💻 Developer Experience & CLI Tooling
+### 💻 Developer Experience & One-Command Launch Tooling
+- **`kynetic launch`**: Single-command terminal workflow orchestrating search (`GET /search/listings`) ➔ listing selection ➔ instance provisioning (`POST /v1/instances`) ➔ auto-connection PTY shell without opening a browser. Supports `--gpu`, `--region`, `--max-price`, `--hours`, `--yes` (`-y`), and `--resume <instance_id>`.
 - **`kynetic login`**: OAuth2 Device Authorization Grant flow for browser authentication from headless terminals.
 - **`kynetic connect <instance_id>`**: Instant raw-mode PTY terminal session over reverse-dial WebSocket tunnel.
 - **`kynetic cp <src> <dst>`**: 1MB chunked resumable file transfers with SHA-256 integrity checksums.
 - **`kynetic ssh <instance_id>`**: Automatic `~/.ssh/config` block generator for seamless VS Code Remote SSH connectivity.
 - **`kynetic tunnel`**: Local (`127.0.0.1:port`) and public (`https://tunnel.kynetic.ai/...`) port forwarding endpoints.
 
-### 🧠 Weighted 6-Factor Scheduler (§9)
-- Dynamic host selection algorithm:
-  - **Price Score** (30%)
-  - **FP32 TFLOPS & Benchmark Score** (25%)
-  - **Host Reputation Rating** (20%)
-  - **Regional Latency** (15%)
-  - **Hardware Availability** (10%)
-  - **Anti-Starvation Randomization** (+5% jitter)
-- CLI Hints: `--budget` (price-weighted), `--fastest` (performance-weighted), or `--balanced` (default).
+### 🧠 Weighted 6-Factor Scheduler & Smart Search Engine
+- **Weighted 6-Factor Node Scoring (§9)**: Evaluates compute nodes based on Price Score (30%), FP32 TFLOPS & Benchmark Score (25%), Host Reputation Rating (20%), Regional Latency (15%), Hardware Availability (10%), plus a 5% anti-starvation randomization jitter band.
+- **Multi-Attribute Smart Search Engine (v8 Feature 5)**: High-speed composable search query engine (`GET /v1/search/listings`) over a denormalized catalog (`searchable_listings`), filtering by GPU model, VRAM capacity, TFLOPS, health score, reputation composite score, verification level, price, region, and OS with cursor pagination.
+- **GPU Benchmark Database (v8 Feature 4)**: Aggregated read-optimized analytics layer (`gpu_model_stats`, `price_performance_stats`) exposing aggregate TFLOPS, memory bandwidth, and score-per-dollar price/performance rankings (`GET /benchmarks/gpu-models`, `GET /benchmarks/price-performance`).
+
+### 🌟 Host Reputation, Health Scores & Tiered Verification Program
+- **GPU Benchmark & Rolling Health Engine (v8 Feature 1)**: Peer-group normalized FP16/FP32 TFLOPS and VRAM bandwidth benchmark scoring, min/max envelope fraud detection (`check_envelope`), and rolling 7-day thermal, clock, and power stability health scores.
+- **Host Reputation System (v8 Feature 2)**: Immutable append-only audit event log (`reputation_events`), exponential time-decay score engine ($e^{-\lambda t}$, 30-day half-life), anti-gaming cancellation penalties (`-0.0200`), and automatic trust state transitions (`building_trust` ➔ `established` or `flagged`).
+- **Verified Hosts Program (v8 Feature 3)**: Tiered host verification (`unverified` ➔ `silver` ➔ `gold` ➔ `enterprise`). Supports automated Silver auto-checks, Gold eligibility verification, admin document review queue, and revocation cascades (`-0.3500` reputation penalty).
+
+### 💳 Marketplace Payments, Commission & Double-Entry Ledger (v7 Architecture)
+- **3-Party Marketplace Payments**: Direct metered billing where customer payments are captured by the platform; per-second compute usage is recorded in the double-entry ledger; session termination triggers host earnings split.
+- **Balanced Double-Entry Financial Ledger**: Immutable `LedgerEntry` rows (`debit == credit`) across `customer_account:{user_id}`, `platform_revenue`, `host_payable`, `tax_payable`, `provider_clearing`, and `refund_reserve`.
+- **Priority-Based Commission Engine**: Priority rule resolution (`promotional` ➔ `host` ➔ `enterprise` ➔ `workload` ➔ `gpu_type` ➔ `region` ➔ `global_default`), splitting charges into platform commission and host net earnings.
+- **Host Financial Onboarding & KYC**: App-layer encrypted PAN & bank credentials (`enc_v1_...`), onboarding state machine (`registered` ➔ `kyc_approved` ➔ `active`), and provider linked account creation.
+- **Host Payout & Refund Engine**: Idempotent transfer execution (`reference_id = payout.id`), line-item traceability, manual review escalation, and platform `refund_reserve` buffer handling.
 
 ### 🔒 Zero-Trust Security & Host Agent Hardening
 - **Progressive Trust Tiers**: Spend & instance limit caps (`Tier 1`: $10/hr max; `Tier 2`: $50/hr max; `Tier 3`: unlimited).
@@ -63,15 +71,6 @@ Kynetic is built on a 5-plane decoupled architecture operating on a **100% Pytho
 - **Platform Emergency Kill Switch**: Instant administrative revocation of compromised instances/hosts/accounts (`POST /v1/security/kill-switch`).
 - **Cryptomining Abuse Detector**: Pre-execution OCI container image safety scanning and runtime process command-line inspection (`xmrig`, `ethminer`, `stratum+tcp://`).
 - **Cryptographic Storage Shredding**: 3-pass DoD 5220.22-M data wiping (`shred -n 3 -z`) with cryptographic `SecureDeletionReceipt`.
-
-### 💳 Marketplace Payments, Commission & Double-Entry Ledger (v7 Architecture)
-- **3-Party Marketplace Payments**: Customer payments are captured directly by the Kynetic platform account; per-second metered compute usage is recorded in the double-entry ledger; session termination triggers host earnings split.
-- **Balanced Double-Entry Financial Ledger**: Immutable `LedgerEntry` rows (`debit == credit`) across `customer_account:{user_id}`, `platform_revenue`, `host_payable`, `tax_payable`, `provider_clearing`, and `refund_reserve`.
-- **Priority-Based Commission Engine**: Evaluates active rules in priority order (`promotional` ➔ `host` ➔ `enterprise` ➔ `workload` ➔ `gpu_type` ➔ `region` ➔ `global_default`), splitting charges into platform commission and host net earnings (`v7_host_earnings`).
-- **Host Financial Onboarding & KYC**: App-layer encrypted PAN & bank credentials (`enc_v1_...`), onboarding state machine (`registered` ➔ `kyc_approved` ➔ `active`), and provider linked account creation (`PaymentProviderAccount`).
-- **Host Payout Engine**: Idempotent transfer execution (`reference_id = payout.id`), line-item traceability, and failure recovery with `manual_review` escalation.
-- **Refund Engine & Platform Reserve Buffer**: Refund processing with platform `refund_reserve` handling for refunds requested after host payout.
-- **Payment Provider Abstraction**: Unified `PaymentProviderInterface` supporting `RazorpayRouteAdapter`, `CashfreeEasySplitAdapter`, and `StripeConnectAdapter`.
 
 ---
 
@@ -92,14 +91,14 @@ pip install -e .
 # 1. Authenticate
 kynetic login
 
-# 2. Search compute listings
-kynetic search --gpu "RTX 4090" --max-price 2.00
+# 2. Search & Launch compute via Smart Search
+kynetic launch --gpu "RTX 4090" --max-price 2.00 --yes
 
-# 3. Launch an instance
-kynetic launch --gpu "RTX 4090" --fastest
-
-# 4. Connect to remote PTY terminal
+# 3. Connect to remote PTY terminal (or auto-connected during launch)
 kynetic connect inst-abc12345
+
+# 4. Resume interrupted connection
+kynetic launch --resume inst-abc12345
 
 # 5. Copy files
 kynetic cp ./dataset.tar.gz inst-abc12345:/workspace/
@@ -115,10 +114,10 @@ kynetic terminate inst-abc12345
 
 ## 🧪 Verification & Test Suite
 
-Run the full platform test suite across all Implementation Plan v6 (Phases A–L) and v7 (Phases P1–P7) Phases:
+Run the full platform test suite across all Implementation Plan v6 (Phases A–L), v7 (Phases P1–P7), and v8 (Features 1–7) features:
 
 ```bash
-DATABASE_URL="sqlite+aiosqlite:///:memory:" .venv/bin/pytest cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py
+DATABASE_URL="sqlite+aiosqlite:///:memory:" .venv/bin/pytest cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
 ```
 
 ### Test Coverage Summary
@@ -132,16 +131,20 @@ DATABASE_URL="sqlite+aiosqlite:///:memory:" .venv/bin/pytest cli/tests/test_cli_
 - `test_v6_phase_i_j_k_l_launch_readiness.py`: **5 passed** (Per-second metering & ledger recording, trust tier caps, emergency kill switch, cryptomining abuse detection, Prometheus metrics export)
 - `test_v7_phase_1_2_payments_ledger.py`: **3 passed** (Razorpay HMAC signature verification, database-level webhook replay protection, double-entry financial ledger & daily reconciliation validator)
 - `test_v7_phase_3_4_kyc_commission.py`: **2 passed** (App-layer encrypted KYC submission, provider linked account creation on admin approval, priority commission resolution & host earnings split)
-- `test_v7_phase_5_6_7_payouts_refunds_dashboards.py`: **4 passed** (Payout batching & transfer idempotency, manual_review failure escalation, refund platform reserve buffer, Cashfree adapter, and host/admin financial dashboards)
+- `test_v7_phase_5_6_7_payouts_refunds_dashboards.py`: **4 passed** (Payout batching & transfer idempotency, manual_review failure escalation, refund platform reserve buffer, Cashfree adapter, host/admin financial dashboards)
+- `test_v8_feature_1_benchmark_health_score.py`: **9 passed** (Peer-group normalized FP16/FP32 FLOPS, VRAM bandwidth, min/max envelope fraud detection, rolling 7-day health score, HostScore history)
+- `test_v8_feature_2_3_reputation_verification.py`: **5 passed** (Append-only reputation event log, time-decay engine, anti-gaming cancellation penalties, automatic Silver/Gold eligibility, admin Enterprise review & revocation cascades)
+- `test_v8_feature_4_5_6_search_launch.py`: **5 passed** (GPU Benchmark Database analytics aggregation, side-by-side model comparison, search listing sync, multi-attribute smart search query engine, API routes, and `kynetic launch` CLI flags)
 
-**Grand Total: 37 passed out of 37 tests in 4.03s (100% Success Rate)**.
+**Grand Total: 56 passed out of 56 tests (100% Success Rate)**.
 
 ---
 
 ## 📄 Documentation Index
+- [16_Implementation_Plan_v8.md](Docs/Plans/16_Implementation_Plan_v8.md) — GPU Benchmarks, Health Scores, Reputation, Verified Hosts, Smart Search & One Command Launch v8
 - [15_Implementation_Plan_v7.md](Docs/Plans/15_Implementation_Plan_v7.md) — Marketplace Payment, Billing, Commission & Payout Architecture v7
 - [14_Implementation_Plan_v6.md](Docs/Plans/14_Implementation_Plan_v6.md) — Production Engineering Specification & Master Roadmap v6
-- [12_Implemented_Things.md](Docs/Plans/12_Implemented_Things.md) — Master Architecture Specification of Implemented Things (Phases 1–33, A–L, P1–P7)
+- [12_Implemented_Things.md](Docs/Plans/12_Implemented_Things.md) — Master Architecture Specification of Implemented Things (Phases 1–33, A–L, P1–P7, v8 Features 1–7)
 - [backend/README.md](backend/README.md) — Backend Microservices Architecture & Telemetry Specification
 - [cli/README.md](cli/README.md) — 100% Python CLI Installation & Usage Guide
 - [07_Security_Architecture.md](Docs/Plans/07_Security_Architecture.md) — Zero-Trust Security Specification

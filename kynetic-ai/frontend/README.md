@@ -35,11 +35,12 @@ The web application contains **11 full-featured portals & pages**:
 - **1-Click Direct Launch Modal**: Instant deployment modal with pre-selected parameters and SSH key assignment.
 
 ### 3. 🛍️ Compute Marketplace Catalog (`/marketplace` & `/marketplace/[id]`)
-- **Multi-Filter Hardware Catalog**: Search and filter by GPU model, VRAM capacity, CPU core count, RAM size, region, host trust tier, and availability state.
+- **Multi-Filter Hardware Catalog**: Search and filter by GPU model, VRAM capacity, CPU core count, RAM size, region, verification level (`Silver`, `Gold`, `Enterprise`), reputation score, and availability state.
 - **Listing Detail Page**:
-  - Hardware benchmark scores: FP32 TFLOPS, memory bandwidth (GB/s), NVMe IOPS, network throughput.
+  - Hardware benchmark scores: Peer-group normalized FP16/FP32 TFLOPS, memory bandwidth (GB/s), NVMe IOPS, network throughput.
+  - Rolling 7-Day Health Scores: Thermal stability (°C), GPU core clock stability, and power draw stability dials.
   - Dual-currency pricing breakdown: Hourly ($/hr & ₹/hr) and per-second micro-rates.
-  - Host node trust metrics: Reputation score (0–100), verified trust tier badge, uptime history.
+  - Host node trust & reputation metrics: Time-decayed composite reputation score (0.00–1.00 score), verified trust tier badge (`Silver`, `Gold`, `Enterprise`), dispute/refund history.
 - **Direct Deployment Trigger Modal**: Pre-flight balance check alerts, SSH key pair selection, and instance configuration.
 
 ### 4. 🖥️ Active Instances Dashboard (`/instances` & `/instances/[id]`)

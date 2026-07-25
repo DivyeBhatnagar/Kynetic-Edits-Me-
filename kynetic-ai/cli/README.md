@@ -33,16 +33,18 @@ kynetic version
 - **`kynetic config`**: Displays current CLI configuration parameters (API Gateway URL, default region, output formatting).
 
 ### Instance Lifecycle Management
-- **`kynetic search`**: Queries available GPU and CPU compute listings with optional filters (`--gpu`, `--vram`, `--max-price`, `--region`).
-- **`kynetic launch`**: Schedules and launches compute instance. Supports scheduler hint flags:
-  - `--budget`: Prioritizes lower hourly price (50% price weighted).
-  - `--fastest`: Prioritizes higher FP32 TFLOPS & benchmark performance (50% benchmark weighted).
-  - Default: `--balanced` (6-factor weighted ranking).
+- **`kynetic launch`**: Single-command terminal workflow (`kynetic launch`) orchestrating search (`GET /v1/search/listings`) ➔ selection ➔ instance provisioning (`POST /v1/instances`) ➔ auto-connection PTY shell without opening a browser. Supports:
+  - `--gpu <model>`: Filter by GPU model (e.g. `RTX 4090`, `A100`).
+  - `--region <region>`: Filter by geographic region.
+  - `--max-price <price>`: Maximum hourly price ($USD).
+  - `--hours <hours>`: Initial hold duration requested.
+  - `--yes` / `-y`: Auto-confirm top-ranked listing without interactive prompts (for CI/scripts).
+  - `--resume <instance_id>`: Resume connection to an already provisioned instance ID without duplicate provisioning.
 - **`kynetic ls`**: Lists all active and historical compute instances for the authenticated developer.
 - **`kynetic status <instance_id>`**: Shows live status, runtime duration, billed seconds, and host hardware specs for an instance.
 - **`kynetic logs <instance_id>`**: Fetches and streams container execution logs.
 - **`kynetic stop <instance_id>`**: Pauses a running instance.
-- **`kynetic terminate <instance_id>`**: Terminates an instance, triggers DoD 3-pass storage shredding on the host, releases wallet holds, and verifies the cryptographic `SecureDeletionReceipt`.
+- **`kynetic terminate <instance_id>`**: Terminates an instance, triggers DoD 3-pass storage shredding on the host, releases billing holds, and verifies the cryptographic `SecureDeletionReceipt`.
 
 ### Developer Tooling & Connection Layer
 - **`kynetic connect <instance_id>`**: Opens an instant, raw PTY terminal session (`termios`/`tty` raw mode) over reverse-dial WebSocket tunnel. Survives transient Wi-Fi drops with silent auto-reconnect.
@@ -56,7 +58,7 @@ kynetic version
 
 ```
 cli/kynetic_cli/
-├── cli.py               # Main Click CLI command entry point & formatting
+├── cli.py               # Main Click CLI command entry point & launch wizard
 ├── auth_client.py       # OAuth2 Device Authorization Grant client
 ├── instance_client.py   # Instance CRUD & lifecycle API client
 ├── connection.py       # WebSocket PTY terminal session client (raw mode)
@@ -70,5 +72,5 @@ cli/kynetic_cli/
 
 Run CLI unit and integration tests:
 ```bash
-pytest cli/tests/test_cli_auth.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py
+pytest cli/tests/test_cli_auth.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v8_feature_4_5_6_search_launch.py
 ```

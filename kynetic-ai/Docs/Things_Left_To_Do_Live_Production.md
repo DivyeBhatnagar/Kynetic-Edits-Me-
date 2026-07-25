@@ -1,32 +1,77 @@
 # Kynetic AI — Things Left To Do for Live Production Launch
-## Itemized Production Activation Playbook & Checklist for 100% Bug-Free Commercial Launch
+## Itemized Production Activation Playbook & MVP Classification Guide
 
 > **Status**: All 33 core architectural phases, v6 CLI runtime, v7 three-party marketplace payments & double-entry financial ledger, v8 GPU benchmark & verification engines, Next.js 16 web application, and 56 passing integration tests are **100% implemented**.
-> **Purpose**: This document tracks all remaining external credential switches, cloud infrastructure provisioning, PDF invoice engine setups, EV code signing, and seed host onboarding tasks required to go live with paying customers.
+> **Purpose**: This document tracks all remaining tasks for live launch and clearly demarcates **what is strictly MANDATORY for a Day 1 Lean MVP** versus **what can be DEFERRED for post-launch scaling**.
 
 ---
 
-## 📊 Summary Checklist of Remaining Production Activation Tasks
+## 🎯 Executive Guide: Lean MVP vs. Full Enterprise Production Strategy
 
-| Category | Component / Task | Required Action / Specification | Priority | Status |
+To launch fast without over-engineering or spending unnecessary money, use this clear decision framework:
+
+### 1. Terraform IaC AWS EKS 1.29 Cluster & Helm External Secrets Operator
+- 💡 **Plain Language**: Automated scripts that set up enterprise-grade Kubernetes server clusters on Amazon Web Services (AWS) and securely load secrets.
+- 🎯 **MVP Necessity**: **NO (DEFERRED FOR MVP) ❌**
+- 📌 **Why**: For your initial MVP launch, running all microservices on a single cheap VPS (like a $20–$40/month Render, Railway, DigitalOcean Droplet, or single EC2 instance using `docker-compose up -d`) is 100x easier, faster, and cheaper. Multi-node Kubernetes clusters are only needed when serving tens of thousands of concurrent users.
+
+### 2. Cloudflare Edge WAF & SSL/TLS 1.3 Domains (`api.kynetic.ai`, `app.kynetic.ai`, `tunnel.kynetic.ai`)
+- 💡 **Plain Language**: Cloudflare acts as a digital shield against hacker attacks (WAF) and secures your website domains with green padlock HTTPS encryption (`https://`).
+- 🎯 **MVP Necessity**: **PARTIALLY REQUIRED ⚠️**
+  - **Required**: A standard domain (`kynetic.ai`) with free Let's Encrypt / Cloudflare SSL (`https://api.kynetic.ai`).
+  - **Deferred**: Enterprise paid WAF custom firewall rules. A **free Cloudflare account** provides free SSL and basic DDoS protection out of the box in 5 minutes.
+
+### 3. EV Code Signing for Windows `.exe` & Apple Notarization for macOS Host Agent Binaries
+- 💡 **Plain Language**: Paying $300–$500/year to Microsoft and Apple for official digital certificates so Windows/macOS don't display "Publisher Unknown / Unsafe File" warning popups when someone downloads the Host Agent.
+- 🎯 **MVP Necessity**: **NO (DEFERRED FOR MVP) ❌**
+- 📌 **Why**: Users can simply click *"Run Anyway"* on Windows or right-click *"Open"* on macOS. For initial testing with friendly hosts, an unsigned executable, zip file, or simple `pip install kynetic-agent` script works perfectly. Buy EV certificates when launching public paid ad campaigns.
+
+### 4. SendGrid SPF/DKIM/DMARC Email DNS Records & Alertmanager PagerDuty/Slack Routing
+- 💡 **Plain Language**:
+  - *SPF/DKIM/DMARC*: Verification DNS settings so your welcome/invoice emails land in the user's **Inbox** instead of Spam.
+  - *Alertmanager / PagerDuty*: Phone calls/Slack alerts waking up engineers if a server crashes at 3 AM.
+- 🎯 **MVP Necessity**: **50% REQUIRED ⚠️**
+  - **Email DNS (SPF/DKIM)**: **REQUIRED (MANDATORY)** — 5 minutes of free DNS setup so user transactional emails don't go to Spam.
+  - **PagerDuty On-Call Paging**: **DEFERRED** — Overkill for MVP; basic log checking is sufficient.
+
+### 5. Supply-Side Seed Pool (15–25 Initial Verified GPU Nodes across Mumbai & US East)
+- 💡 **Plain Language**: Onboarding an initial fleet of GPUs (RTX 4090 / A100) so the marketplace catalog isn't an empty shell when the first developer visits.
+- 🎯 **MVP Necessity**: **REQUIRED, BUT MUCH SMALLER ⚠️ (2–5 GPUs)**
+  - **Why**: You need live compute available on Day 1, but you don't need 25 expensive nodes right away! Having **2 to 5 GPUs** (e.g. 2x RTX 4090s or 1x A100) is more than enough for initial MVP testing.
+
+### 6. 72-Hour Locust Load Soak Testing & 50-Developer Closed Beta Sign-Off Gate
+- 💡 **Plain Language**: Stress-testing your servers by bombarding them with 1,000 fake simulated users for 3 days non-stop, plus running a private test with 50 real beta users.
+- 🎯 **MVP Necessity**: **NO for 1,000-User Stress Test ❌ | YES for 5 Beta Testers ⚠️**
+  - **72-Hour 1,000-User Soak Test**: **DEFERRED** — Waste of time for MVP scale.
+  - **Beta Testing**: **REQUIRED** — Test the end-to-end flow with **5 to 10 friends/beta users** to verify payments, instance rentals, and receipts work smoothly.
+
+---
+
+## 📊 Summary Checklist & MVP Classification Matrix
+
+| Category | Task / Component | Required Action | MVP Scope | Status |
 |---|---|---|---|---|
-| **1. Payments** | **Razorpay Live Activation (India)** | Set `RAZORPAY_MOCK_MODE=false`, inject live `rzp_live_...` API credentials & register webhook `https://api.kynetic.ai/billing/webhooks/razorpay` | **P0** | ⏳ Pending Credentials |
-| **1. Payments** | **Stripe Live & Connect (Global)** | Inject live `sk_live_...` & `pk_live_...` keys, enable Stripe Connect payouts for 85% host split, register `https://api.kynetic.ai/billing/webhooks/stripe` | **P0** | ⏳ Pending Credentials |
-| **2. Invoices** | **WeasyPrint PDF Engine & S3 Bucket** | Replace S3 URL stubs with `WeasyPrint` HTML-to-PDF rendering (GSTIN `27AAAAA0000A1Z5`, 18% GST breakdown), provision `s3://kynetic-production-invoices` with 15-min presigned URLs | **P0** | ⏳ Pending AWS S3 Setup |
-| **3. Infra** | **Terraform IaC & EKS Bootstrap** | Provision S3/DynamoDB state lock, execute `terraform apply` in `infra/terraform/` to launch AWS EKS 1.29 cluster, RDS PostgreSQL 16 Multi-AZ, ElastiCache Redis 7.2 | **P0** | ⏳ Pending Deploy |
-| **3. Infra** | **Kubernetes Production Rollout** | Install External Secrets Operator via Helm, deploy `infra/k8s/` manifests for all microservices with topology spread & HPA autoscaling | **P0** | ⏳ Pending Deploy |
-| **4. Edge & CDN** | **Cloudflare WAF, DNS & SSL/TLS** | Point A/AAAA records for `api.kynetic.ai`, `app.kynetic.ai`, `tunnel.kynetic.ai` to NGINX Ingress Load Balancer, enable OWASP WAF rules & TLS 1.3 | **P0** | ⏳ Pending Domain Config |
-| **5. Email** | **SendGrid Domain Authentication** | Set `EMAIL_MOCK_MODE=false`, supply live `SG.xxx` API key, configure SPF (`v=spf1 include:sendgrid.net ~all`), DKIM, and DMARC DNS records for `kynetic.ai` | **P0** | ⏳ Pending DNS Records |
-| **5. Email** | **Production Alertmanager Routing** | Deploy Promtail DaemonSet for container logs, configure Alertmanager with live PagerDuty integration key and Slack webhook `#kynetic-ops-critical` | **P1** | ⏳ Pending Webhook Keys |
-| **6. Host Agent** | **EV Code Signing & Binary Packaging** | Sign Windows `kynetic-host-agent.exe` with DigiCert/Sectigo EV certificate, notarize macOS `.app` via Apple NotaryTool, GPG sign Linux installer script | **P1** | ⏳ Pending Certificate |
-| **7. Seed Pool** | **Supply-Side Node Onboarding** | Seed marketplace catalog with 15–25 verified hardware host nodes across Mumbai (`ap-south-1`) and US East (`us-east-1`) (RTX 4090 / A100 / H100) | **P0** | ⏳ Pending Onboarding |
-| **8. Security** | **Vendor Attestation Endpoints** | Connect hardware attestation verification to live AMD KDS (`kdsintf.amd.com`), Intel PCS, and NVIDIA NRAS (`nras.attestation.nvidia.com`) endpoints | **P1** | ⏳ Pending Endpoint Link |
-| **8. Security** | **eBPF XDP Kernel Attachment** | Attach compiled `xdp_filter.o` eBPF C program to host primary network interface during `kynetic-host-agent` startup to enforce hardware-level drop of LAN IPs | **P1** | ⏳ Pending Script Hook |
-| **9. QA & Gate** | **72-Hour Load Soak & Closed Beta** | Run 72-hour Locust soak test (`tests/load/locustfile.py`) under 1,000 concurrent sessions; execute 50-developer closed beta test with $0 error rate | **P0** | ⏳ Pending Final Gate |
+| **1. Payments** | **Razorpay Live Activation** | Inject live `rzp_live_...` API credentials & register webhook `https://api.kynetic.ai/v1/billing/webhooks/razorpay` | **MANDATORY DAY 1** | ⏳ Pending Credentials |
+| **1. Payments** | **Stripe Live & Connect** | Inject live `sk_live_...` keys, enable Stripe Connect payouts for 85% host split, register webhook | **MANDATORY DAY 1** | ⏳ Pending Credentials |
+| **2. Invoices** | **WeasyPrint PDF & S3 Bucket** | Generate 18% GST invoices, store in `s3://kynetic-production-invoices` with 15-min presigned URLs | **MANDATORY DAY 1** | ⏳ Pending AWS S3 Setup |
+| **3. Infra** | **Single Server / Docker Compose** | Deploy all 11 microservices on a single VPS ($20–$40/mo) using `docker-compose up -d` | **MANDATORY DAY 1** | ⏳ Ready to Run |
+| **3. Infra** | **Terraform IaC & EKS Cluster** | Provision AWS EKS 1.29 cluster, RDS Multi-AZ, ElastiCache Redis via Terraform | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **4. Edge & CDN** | **Free Cloudflare SSL & DNS** | Point A/AAAA records for `api.kynetic.ai` and `app.kynetic.ai` with free Cloudflare SSL certificate | **MANDATORY DAY 1** | ⏳ Pending DNS Config |
+| **4. Edge & CDN** | **Cloudflare Enterprise WAF** | Custom OWASP WAF rulesets and 100 req/min rate limiters | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **5. Email** | **SendGrid SPF/DKIM DNS** | Set `EMAIL_MOCK_MODE=false`, add SPF/DKIM DNS records for `kynetic.ai` | **MANDATORY DAY 1** | ⏳ Pending DNS Records |
+| **5. Email** | **PagerDuty / Slack Alerting** | Automated 3 AM phone call routing and Slack webhook integration | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **6. Host Agent** | **Unsigned Binary / Script** | Package `kynetic-host-agent` script/executable for host onboarding | **MANDATORY DAY 1** | ⏳ Ready |
+| **6. Host Agent** | **EV Code Signing Certificate** | $300/yr DigiCert/Sectigo EV Certificate for Windows `.exe` and Apple Notarization | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **7. Seed Pool** | **Initial 2–5 GPU Seed Pool** | Onboard 2x RTX 4090s and 1x A100 to populate catalog on Day 1 | **MANDATORY DAY 1** | ⏳ Pending Onboarding |
+| **7. Seed Pool** | **25+ Global GPU Fleet** | Onboard 25+ nodes across 4 global regions | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **8. Security** | **Vendor Attestation Endpoints** | Connect hardware attestation to live AMD KDS, Intel PCS, NVIDIA NRAS endpoints | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **8. Security** | **eBPF XDP Kernel Attachment** | Attach compiled `xdp_filter.o` eBPF C program to host network interface | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **9. QA Gate** | **5–10 Closed Beta Sign-Off** | Validate end-to-end rental & payment journey with 5–10 friendly beta users | **MANDATORY DAY 1** | ⏳ Pending Beta |
+| **9. QA Gate** | **72-Hour 1,000-User Soak Test** | 72-hour continuous Locust load test under 1,000 simulated users | **DEFERRED (Post-MVP)** | ⏳ Optional |
 
 ---
 
-## Category 1: Payment Gateway Production Switch & Financial Flow
+## Category 1: Payment Gateway Production Switch & Financial Flow `[MANDATORY DAY 1]`
 
 ### 1.1 Razorpay Production Activation (India UPI / Netbanking / Cards)
 - **Target File**: `backend/services/wallet_billing_service/config.py`
@@ -54,7 +99,7 @@
 
 ---
 
-## Category 2: Automated PDF Invoice Engine & S3 Storage Bucket
+## Category 2: Automated PDF Invoice Engine & S3 Storage Bucket `[MANDATORY DAY 1]`
 
 ### 2.1 WeasyPrint / ReportLab PDF Rendering Engine
 - **Target File**: `backend/services/wallet_billing_service/invoice.py`
@@ -65,7 +110,6 @@
      - **Invoice Metadata**: Sequential Fiscal Year Number (`KYN/2024-25/000001` via `SELECT FOR UPDATE` locking), Invoice Date, Due Date.
      - **Line Items**: Per-second compute rental breakdown (GPU model, total seconds, hourly rate, subtotal).
      - **Tax Calculation**: 18% GST Breakdown (CGST 9% + SGST 9% for intra-state; IGST 18% for inter-state India; 0% Export for foreign developers).
-     - **Digital Signature**: Embedded PKCS#7 digital signature for tax authenticity.
 
 ### 2.2 S3 Bucket Provisioning & Presigned Download URLs
 - **Steps**:
@@ -75,55 +119,32 @@
 
 ---
 
-## Category 3: Production Infrastructure & IaC Bootstrap
+## Category 3: Single VPS Deployment vs. Enterprise Kubernetes
 
-### 3.1 Remote Terraform State Bootstrap
-- **Location**: `infra/terraform/`
+### 3.1 Lean MVP VPS Deployment `[MANDATORY DAY 1]`
+- **Target**: Single Ubuntu 22.04 VPS (DigitalOcean Droplet / AWS EC2 / Railway / Render)
 - **Steps**:
-  1. Execute one-time S3 bucket and DynamoDB lock table setup for Terraform state locking:
+  1. Clone repository to server:
      ```bash
-     aws s3api create-bucket --bucket kynetic-terraform-state-prod --region ap-south-1
-     aws dynamodb create-table --table-name kynetic-tf-locks --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST
+     git clone https://github.com/DivyeBhatnagar/KyneticSoftware.git
+     cd KyneticSoftware/kynetic-ai
      ```
-  2. Initialize and deploy IaC:
+  2. Start all microservices, PostgreSQL, and Redis:
      ```bash
-     cd infra/terraform
-     terraform init -backend-config="bucket=kynetic-terraform-state-prod"
-     terraform apply -var-file=environments/production.tfvars -auto-approve
+     docker-compose -f infra/docker-compose.yml up -d --build
      ```
 
-### 3.2 Kubernetes Production Deployment & Helm Operators
-- **Location**: `infra/k8s/`
+### 3.2 Enterprise Terraform IaC & EKS Cluster `[DEFERRED FOR POST-MVP]`
+- **Location**: `infra/terraform/` & `infra/k8s/`
 - **Steps**:
-  1. Connect `kubectl` to the newly created EKS cluster:
-     ```bash
-     aws eks update-kubeconfig --region ap-south-1 --name kynetic-prod-eks
-     ```
-  2. Install **External Secrets Operator** via Helm to automatically sync AWS Secrets Manager into Kubernetes secrets:
-     ```bash
-     helm repo add external-secrets https://charts.external-secrets.io
-     helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
-     ```
-  3. Apply Kubernetes production manifests:
-     ```bash
-     kubectl apply -f infra/k8s/namespace.yaml
-     kubectl apply -f infra/secrets/secret-mappings.yaml
-     kubectl apply -f infra/k8s/services/
-     kubectl apply -f infra/k8s/workers/
-     ```
-
-### 3.3 Cloudflare WAF, DNS & SSL/TLS Ingress Setup
-- **Location**: `infra/cdn/`
-- **Steps**:
-  1. Execute Terraform script in `infra/cdn/` with domain `kynetic.ai`.
-  2. Point A/AAAA records for `api.kynetic.ai`, `app.kynetic.ai`, `tunnel.kynetic.ai`, and `kynetic.ai` to NGINX Ingress Load Balancer.
-  3. Enable Cloudflare WAF OWASP Managed Ruleset, Rate Limiting (100 req/min per IP on `/auth/`), and Universal SSL with strict TLS 1.3 requirement.
+  1. Execute Terraform script to provision AWS EKS 1.29 cluster, RDS PostgreSQL 16 Multi-AZ, ElastiCache Redis 7.2.
+  2. Deploy Helm External Secrets Operator and apply Kubernetes manifests in `infra/k8s/`.
 
 ---
 
 ## Category 4: Email Domain Authentication & Telemetry Pipeline
 
-### 4.1 SendGrid Production Email Activation
+### 4.1 SendGrid Production Email Activation `[MANDATORY DAY 1]`
 - **Target File**: `backend/services/notifications_service/config.py`
 - **Steps**:
   1. Update environment variable `EMAIL_MOCK_MODE=false`.
@@ -133,60 +154,30 @@
      - **DKIM**: Add 2 CNAME records provided by SendGrid (`s1._domainkey.kynetic.ai`, `s2._domainkey.kynetic.ai`).
      - **DMARC**: `v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@kynetic.ai`
 
-### 4.2 Production Observability & Alerting Routing
+### 4.2 Production Observability & Alerting Routing `[DEFERRED FOR POST-MVP]`
 - **Location**: `infra/observability/`
-- **Steps**:
-  1. Deploy Promtail DaemonSet to stream JSON logs from all microservice containers to Grafana Loki.
-  2. Update `alertmanager.yml` to supply live PagerDuty Integration Key (`PAGERDUTY_SERVICE_KEY`) and Slack Webhook URL (`https://hooks.slack.com/services/XXXXXX`) for critical alerts.
+- **Steps**: Deploy Promtail DaemonSet to stream logs to Grafana Loki; configure Alertmanager with live PagerDuty and Slack webhooks.
 
 ---
 
-## Category 5: Host Agent Code Signing & Supply-Side Seed Pool
+## Category 5: Host Agent Packaging & Seed Pool Onboarding
 
-### 5.1 Host Agent Binary Signing & Notarization
-- **Steps**:
-  1. **Windows Host Agent (`kynetic-host-agent.exe`)**:
-     - Obtain Sectigo / DigiCert EV Code Signing Certificate.
-     - Sign executable using `signtool.exe` to prevent Windows Defender / SmartScreen untrusted publisher warnings:
-       ```cmd
-       signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /f kynetic_ev_cert.pfx /p "CERT_PASSWORD" kynetic-host-agent.exe
-       ```
-  2. **macOS Host Agent (`kynetic-host-agent.app`)**:
-     - Sign with Apple Developer ID Application certificate and submit for Apple Notarization via `xcrun notarytool`.
-  3. **Linux Installer (`host-agent.sh`)**:
-     - Generate GPG detached signature `kynetic-host-agent.asc` and publish public key `https://get.kynetic.ai/kynetic-key.gpg`.
+### 5.1 Host Agent Packaging `[MANDATORY DAY 1: Script/Unsigned | DEFERRED: EV Certificate]`
+- **Lean MVP Steps**:
+  1. Distribute Host Agent script via `curl -fsSL https://get.kynetic.ai/host-agent.sh | bash` or `pip install kynetic-agent`.
+  2. For Windows users, instruct them to click *"Run Anyway"* on smart screen prompt during initial beta testing.
 
-### 5.2 Supply-Side Seed Pool Onboarding
-- **Steps**:
-  1. Deploy 15 to 25 verified hardware host nodes owned by Kynetic and launch partners across regions:
-     - **Mumbai (`ap-south-1`)**: 10x NVIDIA RTX 4090 (24GB VRAM), 4x NVIDIA A100 (80GB VRAM).
-     - **US East (`us-east-1`)**: 6x NVIDIA RTX 4090 (24GB VRAM), 2x NVIDIA H100 (80GB VRAM).
-  2. Run automated hardware verification & PyTorch benchmarks to populate seed inventory on Day 1.
+### 5.2 Supply-Side Seed Pool Onboarding `[MANDATORY DAY 1: 2–5 GPUs | DEFERRED: 25+ Fleet]`
+- **Lean MVP Steps**:
+  1. Onboard 2x NVIDIA RTX 4090 (24GB VRAM) and 1x NVIDIA A100 (80GB VRAM) host machines to populate catalog on Day 1.
+  2. Run automated hardware verification & PyTorch benchmarks to ensure active inventory.
 
 ---
 
-## Category 6: Zero-Trust Security v4 & v5 Production Enforcements
+## Category 6: Pre-Launch Verification & Go-Live Gate `[MANDATORY DAY 1: 5 Beta Users]`
 
-### 6.1 Hardware Remote Attestation Service Endpoints
-- **Target File**: `backend/services/security_service/attestation_sealer.py`
-- **Steps**:
-  1. Connect attestation verification logic to live vendor certificate verification endpoints:
-     - **AMD SEV-SNP**: AMD Key Brokerage Service (`https://kdsintf.amd.com/vCEK/v1/`)
-     - **Intel TDX**: Intel Provisioning Certification Service (`https://api.trustedservices.intel.com/sgx/certification/v4/`)
-     - **NVIDIA GPU CC Mode**: NVIDIA Remote Attestation Service (NRAS API `https://nras.attestation.nvidia.com/v1/attest`)
+### 6.1 Closed Beta Sign-Off Gate `[MANDATORY DAY 1]`
+- **Steps**: Invite 5–10 friendly developers and 2 host operators. Validate end-to-end user journeys (Host Signup → Benchmark → Listing → Developer Payment → Instance Rental → PTY Session → Termination → Invoice Download) with zero errors.
 
-### 6.2 eBPF XDP Network Firewall Kernel Attachment
-- **Target File**: `backend/services/security_service/ebpf_firewall.py`
-- **Steps**:
-  1. Compile eBPF C program to byte-code (`clang -O2 -target bpf -c xdp_filter.c -o xdp_filter.o`).
-  2. Attach XDP program to host primary network interface during `kynetic-host-agent` startup script to enforce hardware-level drop of RFC 1918 private subnets.
-
----
-
-## Category 7: Final Pre-Launch Verification & Go-Live Gate
-
-### 7.1 Pre-Launch Load & Soak Test
-- **Steps**: Run 72-hour continuous soak test using Locust (`backend/tests/load/locustfile.py`) under 1,000 simulated concurrent developer sessions to ensure 0 memory leaks in microservices and Redis connection pools.
-
-### 7.2 Closed Beta Sign-Off Gate
-- **Steps**: Invite 50 vetted AI developers and 20 hardware hosts for a 7-day closed beta period. Validate end-to-end user journeys (Host Signup → Benchmark → Listing → Developer Topup → Instance Rental → Workload Run → Termination → Payout → GST Invoice Download) with $0 error rate before removing registration gate.
+### 6.2 72-Hour Load & Soak Test `[DEFERRED FOR POST-MVP]`
+- **Steps**: Run 72-hour continuous Locust load test (`backend/tests/load/locustfile.py`) under 1,000 simulated users.

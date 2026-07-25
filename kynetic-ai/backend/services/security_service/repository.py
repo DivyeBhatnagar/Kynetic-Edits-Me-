@@ -148,7 +148,7 @@ class TrustTierRepository:
         max_gpu_vram_gb: int | None = ...,
         max_gpu_hours_month: int | None = ...,
         max_spend_usd_month: float | None = ...,
-        is_wallet_frozen: bool | None = None,
+        is_billing_frozen: bool | None = None,
     ) -> TrustTier:
         """Upsert trust tier — creates default record if missing."""
         record = await self.get_or_create_default(user_id)
@@ -162,17 +162,17 @@ class TrustTierRepository:
             record.max_gpu_hours_month = max_gpu_hours_month
         if max_spend_usd_month is not ...:
             record.max_spend_usd_month = max_spend_usd_month
-        if is_wallet_frozen is not None:
-            record.is_wallet_frozen = is_wallet_frozen
+        if is_billing_frozen is not None:
+            record.is_wallet_frozen = is_billing_frozen
         record.updated_at = datetime.now(tz=timezone.utc)
         await self._s.flush()
         return record
 
     async def freeze_wallet(self, user_id: uuid.UUID) -> TrustTier:
-        return await self.update(user_id, is_wallet_frozen=True)
+        return await self.update(user_id, is_billing_frozen=True)
 
     async def unfreeze_wallet(self, user_id: uuid.UUID) -> TrustTier:
-        return await self.update(user_id, is_wallet_frozen=False)
+        return await self.update(user_id, is_billing_frozen=False)
 
 
 class DeviceFingerprintRepository:

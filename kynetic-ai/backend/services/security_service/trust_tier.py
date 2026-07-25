@@ -84,7 +84,7 @@ def check_instance_launch(
     tier: TrustTierLevel,
     max_instance_vcpus: int | None,
     max_gpu_vram_gb: int | None,
-    is_wallet_frozen: bool,
+    is_billing_frozen: bool,
 ) -> None:
     """
     Validates that the requested instance spec is within the user's trust tier.
@@ -94,14 +94,14 @@ def check_instance_launch(
     """
     violations: list[TrustViolation] = []
 
-    # Frozen wallet = no new instances, period
-    if is_wallet_frozen:
+    # Frozen account/billing = no new instances, period
+    if is_billing_frozen:
         raise TrustTierViolationError(user_id, [
             TrustViolation(
-                rule="wallet_frozen",
+                rule="billing_frozen",
                 requested="launch_instance",
                 allowed=False,
-                message="Wallet is frozen — no new instances permitted",
+                message="Account billing is frozen — no new instances permitted",
             )
         ])
 

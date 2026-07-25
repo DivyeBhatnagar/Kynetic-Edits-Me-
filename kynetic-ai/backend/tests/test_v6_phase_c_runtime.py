@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from libs.db_models.database import get_db_session
 from libs.db_models.user_models import User, UserRole
 from libs.db_models.host_models import Host, HostStatus
-from libs.db_models.marketplace_models import Listing, ResourceType, ListingStatus, Wallet
+from libs.db_models.marketplace_models import Listing, ResourceType, ListingStatus
 from libs.db_models.provisioning_models import (
     Instance,
     InstanceStatus,
@@ -55,14 +55,6 @@ async def test_developer_and_token(db_session: AsyncSession):
         is_active=True,
     )
     db_session.add(dev)
-
-    wallet = Wallet(
-        id=uuid.uuid4(),
-        user_id=dev_id,
-        balance_usd=Decimal("100.000000"),
-        balance_inr=Decimal("8300.000000"),
-    )
-    db_session.add(wallet)
     await db_session.commit()
 
     access_token = create_access_token(user_id=dev.id, role=dev.role.value)

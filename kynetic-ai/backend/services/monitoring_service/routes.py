@@ -46,7 +46,7 @@ async def platform_health():
             "api_gateway": "ok",
             "auth_service": "ok",
             "marketplace_service": "ok",
-            "wallet_billing_service": "ok",
+            "billing_service": "ok",
             "provisioning_service": "ok",
             "security_service": "ok",
             "ai_router_copilot_service": "ok",
@@ -68,7 +68,7 @@ async def platform_summary():
     return {
         "active_instances": 0,
         "compute_spend_today_usd": "0.00",
-        "wallet_topups_today": 0,
+        "payments_captured_today": 0,
         "notifications_sent_today": 0,
         "invoices_generated_today": 0,
         "note": "Live data available after Grafana integration with DB queries.",

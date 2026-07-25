@@ -21,9 +21,9 @@ class EmailDispatcher:
         return True
 
 
-def build_low_balance_email(balance_usd: float) -> tuple[str, str, str]:
-    sub = "⚠️ Kynetic: Wallet balance low"
-    html = f"<p>Balance: ${balance_usd:.2f}</p>"
+def build_low_credit_email(compute_spend_usd: float) -> tuple[str, str, str]:
+    sub = "⚠️ Kynetic: Account billing attention required"
+    html = f"<p>Your compute spend today: ${compute_spend_usd:.2f}. Ensure your payment method is valid to continue running instances.</p>"
     return sub, html, html
 
 

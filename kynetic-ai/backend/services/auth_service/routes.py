@@ -92,7 +92,7 @@ async def signup(
     Register a new user account.
 
     Creates the user, issues an access + refresh token pair.
-    Every developer account will auto-create a wallet in Phase 3 (hooked here later).
+    Publishes a user.created event for downstream billing service initialization.
     """
     audit_repo = AuditLogRepository(session)
     user_repo = UserRepository(session, audit_repo)
@@ -132,7 +132,7 @@ async def signup(
 
     logger.info("user_signup", user_id=str(user.id), role=user.role.value)
 
-    # Phase 3: Publish user.created event → wallet_billing_service auto-creates wallet
+    # Phase 3: Publish user.created event → billing_service initializes account
     try:
         r = aioredis.from_url(settings.redis_url, decode_responses=True)
         await r.publish(
@@ -145,7 +145,7 @@ async def signup(
         )
         await r.aclose()
     except Exception as exc:
-        # Non-fatal — wallet creation failure is retryable via event replay
+        # Non-fatal — billing initialization is retryable via event replay
         logger.warning("user_created_event_publish_failed", error=str(exc))
 
     return TokenResponse(

@@ -85,13 +85,13 @@ class Invoice(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    # FK to wallet transactions table (marketplace_models.py)
+    # FK to double-entry ledger (payment_models_v7.py)
     transaction_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("wallet_transactions.id", ondelete="RESTRICT"),
+        ForeignKey("v7_ledger_entries.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
-        unique=True,  # one invoice per transaction, idempotent
+        unique=True,  # one invoice per ledger entry, idempotent
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

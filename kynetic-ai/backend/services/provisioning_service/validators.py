@@ -33,7 +33,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.db_models.host_models import Host, HostHeartbeat, HeartbeatStatus, HostStatus
-from libs.db_models.marketplace_models import Listing, ListingStatus, Wallet, Currency
+from libs.db_models.marketplace_models import Listing, ListingStatus
 from libs.db_models.user_models import User, UserRole
 
 log = structlog.get_logger(__name__)
@@ -82,7 +82,6 @@ class ValidatedInstanceRequest:
 
     The caller (scheduler / route handler) uses these values directly to:
       - Create the Instance record (no second listing/host lookup needed)
-      - Place the wallet hold with the correct currency and amount
       - Pass host_id and agent_url into the Celery provisioning task
     """
 
@@ -93,9 +92,7 @@ class ValidatedInstanceRequest:
     price_per_hour_inr: Decimal
     price_per_second_usd: Decimal
     price_per_second_inr: Decimal
-    currency: Currency  # the developer's preferred currency
     hold_amount: Decimal  # pre-computed hold for `hold_hours` of compute
-    hold_currency: Currency
 
 
 # ── Individual validation steps ─────────────────────────────────────────────
@@ -239,37 +236,19 @@ async def _validate_host(
     return host
 
 
-async def _validate_wallet_balance(
+async def _validate_account(
     db: AsyncSession,
     developer_id: Union[str, uuid.UUID],
-    hold_amount: Decimal,
-    hold_currency: Currency,
-) -> Wallet:
-    """Ensure the developer's wallet exists and has sufficient balance for the hold."""
+) -> None:
+    """Ensure the developer account exists and is active."""
     dev_uuid = _as_uuid(developer_id)
-    result = await db.execute(select(Wallet).where(Wallet.user_id == dev_uuid))
-    wallet = result.scalar_one_or_none()
-
-    if wallet is None:
+    user_res = await db.execute(select(User).where(User.id == dev_uuid))
+    user = user_res.scalar_one_or_none()
+    if user is None:
         raise InstanceValidationError(
-            "WALLET_NOT_FOUND",
-            "No wallet found for this account. Contact support.",
+            "ACCOUNT_NOT_FOUND",
+            "No active user account found for this developer.",
         )
-
-    if hold_currency is Currency.inr:
-        available = wallet.balance_inr
-    else:
-        available = wallet.balance_usd
-
-    if available < hold_amount:
-        raise InstanceValidationError(
-            "INSUFFICIENT_BALANCE",
-            f"Insufficient balance. Required: {hold_amount:.6f} {hold_currency.value.upper()}, "
-            f"available: {available:.6f} {hold_currency.value.upper()}. "
-            "Please top up your wallet.",
-        )
-
-    return wallet
 
 
 # ── Public entry point ──────────────────────────────────────────────────────
@@ -286,24 +265,11 @@ async def validate_instance_request(
     Single entry point called by the provisioning route handler before any
     infrastructure work begins.
 
-    Runs all four validation steps atomically (within the same DB transaction):
+    Runs validation steps atomically:
       1. Permission check  — can `requester_id` act for `developer_id`?
       2. Listing check     — is the listing active and available?
       3. Host check        — is the host online and idle?
-      4. Wallet check      — does the developer have enough balance?
-
-    Args:
-        db:            Open async DB session (transaction managed by caller).
-        requester_id:  User ID extracted from the JWT (may differ from developer_id for admin calls).
-        developer_id:  The user whose wallet and permissions are checked.
-        listing_id:    The listing being requested.
-        hold_hours:    Number of hours to pre-authorise (1 = 1-hour hold, the standard minimum).
-
-    Returns:
-        ValidatedInstanceRequest: All pre-computed values for instance creation.
-
-    Raises:
-        InstanceValidationError: On any check failure, with a code describing the reason.
+      4. Account check     — is the developer account active and valid?
     """
     dev_uuid = _as_uuid(developer_id)
     req_uuid = _as_uuid(requester_id)
@@ -326,25 +292,9 @@ async def validate_instance_request(
         # ── Step 3: Host (uses listing.host_id) ─────────────────────────
         host = await _validate_host(db, listing.host_id)
 
-        # ── Step 4: Wallet balance ───────────────────────────────────
-        # Determine preferred currency from the developer's wallet.
-        wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == dev_uuid))
-        wallet = wallet_result.scalar_one_or_none()
-
-        # Fallback to USD if wallet doesn't exist yet (will be caught in _validate_wallet_balance).
-        preferred_currency = wallet.preferred_currency if wallet else Currency.usd
-
-        # Compute hold amount in the developer's preferred currency.
-        if preferred_currency is Currency.inr:
-            hourly_rate = listing.price_per_hour_inr
-            hold_currency = Currency.inr
-        else:
-            hourly_rate = listing.price_per_hour_usd
-            hold_currency = Currency.usd
-
-        hold_amount = (hourly_rate * hold_hours).quantize(Decimal("0.000001"))
-
-        await _validate_wallet_balance(db, developer_id, hold_amount, hold_currency)
+        # ── Step 4: Account Billing Readiness ──────────────────────────
+        await _validate_account(db, developer_id)
+        hold_amount = (listing.price_per_hour_usd * hold_hours).quantize(Decimal("0.000001"))
 
     except InstanceValidationError as exc:
         await log_validation_rejection(
@@ -362,7 +312,6 @@ async def validate_instance_request(
         listing_id=str(listing_id),
         host_id=str(host.id),
         hold_amount=str(hold_amount),
-        hold_currency=hold_currency.value,
     )
 
     return ValidatedInstanceRequest(
@@ -373,7 +322,5 @@ async def validate_instance_request(
         price_per_hour_inr=listing.price_per_hour_inr,
         price_per_second_usd=listing.price_per_second_usd,
         price_per_second_inr=listing.price_per_second_inr,
-        currency=preferred_currency,
         hold_amount=hold_amount,
-        hold_currency=hold_currency,
     )

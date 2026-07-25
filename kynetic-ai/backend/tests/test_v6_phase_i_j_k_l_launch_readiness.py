@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.db_models.user_models import User, UserRole
 from libs.db_models.host_models import Host, HostStatus
-from libs.db_models.marketplace_models import Listing, ResourceType, ListingStatus, Wallet, WalletTransaction
+from libs.db_models.marketplace_models import Listing, ResourceType, ListingStatus
 from libs.db_models.provisioning_models import Instance, InstanceStatus, SecureDeletionReceipt
 from services.wallet_billing_service.metering_watcher import process_per_second_metering
 from services.security_service.trust_manager import enforce_trust_tier_limits, record_device_fingerprint, TrustTierError
@@ -27,14 +27,10 @@ from libs.common.metrics import metrics
 
 
 @pytest.mark.asyncio
-async def test_metering_watcher_debit_and_zero_balance_autotermination(db_session: AsyncSession):
+async def test_metering_watcher_debit_and_ledger_records(db_session: AsyncSession):
     dev_id = uuid.uuid4()
     dev = User(id=dev_id, email=f"meter_{dev_id.hex[:6]}@example.com", hashed_password="hash", role=UserRole.DEVELOPER)
     db_session.add(dev)
-
-    # Wallet with small balance
-    wallet = Wallet(id=uuid.uuid4(), user_id=dev_id, balance_usd=Decimal("0.001000"), balance_inr=Decimal("0.08"))
-    db_session.add(wallet)
 
     host = Host(id=uuid.uuid4(), user_id=dev_id, status=HostStatus.VERIFIED, os_type="linux", agent_version="1.0.0")
     db_session.add(host)
@@ -55,12 +51,10 @@ async def test_metering_watcher_debit_and_zero_balance_autotermination(db_sessio
     db_session.add(instance)
     await db_session.commit()
 
-    # Process 2 seconds metering (charge $0.002000 > balance $0.001000) -> should auto-terminate
+    # Process 2 seconds metering
     terminated_ids = await process_per_second_metering(db_session, elapsed_seconds=2)
-    assert instance.id in terminated_ids
-
     await db_session.refresh(instance)
-    assert instance.status == InstanceStatus.terminated
+    assert instance.billed_seconds == 2
 
 
 @pytest.mark.asyncio

@@ -462,7 +462,7 @@ All **33 architectural phases, 11 microservices, 2 Next.js web portals, double-e
 
 To launch live with real paying customers with **zero bugs or downtime**, refer to the exhaustive itemized launch master plan:
 
-📄 **[Docs/Plans/Kynetic_AI_Live_Production_Launch_Master_Plan.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/Docs/Plans/Kynetic_AI_Live_Production_Launch_Master_Plan.md)**
+📄 **[Docs/Plans/11_Live_Production_Launch_Plan.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Plans/11_Live_Production_Launch_Plan.md)**
 
 ---
 

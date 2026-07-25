@@ -21,7 +21,7 @@ FRONTEND_COMP_DIR = os.path.join(
     os.path.dirname(__file__), "../../apps/frontend/components"
 )
 PLAN_DOC_PATH = os.path.join(
-    os.path.dirname(__file__), "../../../Docs/Plans/Kynetic_AI_Implementation_Plan_2.md"
+    os.path.dirname(__file__), "../../../Docs/Plans/05_Implementation_Plan_v2.md"
 )
 
 

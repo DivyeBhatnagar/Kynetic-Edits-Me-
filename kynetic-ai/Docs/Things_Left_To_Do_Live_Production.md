@@ -1,8 +1,8 @@
 # Kynetic AI — Things Left To Do for Live Production Launch
-## Itemized Production Activation Playbook & MVP Classification Guide
+## Itemized Production Activation Playbook, MVP Classification & Security Hardening Guide
 
 > **Status**: All 33 core architectural phases, v6 CLI runtime, v7 three-party marketplace payments & double-entry financial ledger, v8 GPU benchmark & verification engines, Next.js 16 web application, and 56 passing integration tests are **100% implemented**.
-> **Purpose**: This document tracks all remaining tasks for live launch and clearly demarcates **what is strictly MANDATORY for a Day 1 Lean MVP** versus **what can be DEFERRED for post-launch scaling**.
+> **Purpose**: This document tracks all remaining tasks for live launch and clearly demarcates **what is strictly MANDATORY for a Day 1 Lean MVP** versus **what can be DEFERRED for post-launch scaling**, including advanced multi-layer security hardening.
 
 ---
 
@@ -64,8 +64,13 @@ To launch fast without over-engineering or spending unnecessary money, use this 
 | **6. Host Agent** | **EV Code Signing Certificate** | $300/yr DigiCert/Sectigo EV Certificate for Windows `.exe` and Apple Notarization | **DEFERRED (Post-MVP)** | ⏳ Optional |
 | **7. Seed Pool** | **Initial 2–5 GPU Seed Pool** | Onboard 2x RTX 4090s and 1x A100 to populate catalog on Day 1 | **MANDATORY DAY 1** | ⏳ Pending Onboarding |
 | **7. Seed Pool** | **25+ Global GPU Fleet** | Onboard 25+ nodes across 4 global regions | **DEFERRED (Post-MVP)** | ⏳ Optional |
-| **8. Security** | **Vendor Attestation Endpoints** | Connect hardware attestation to live AMD KDS, Intel PCS, NVIDIA NRAS endpoints | **DEFERRED (Post-MVP)** | ⏳ Optional |
-| **8. Security** | **eBPF XDP Kernel Attachment** | Attach compiled `xdp_filter.o` eBPF C program to host network interface | **DEFERRED (Post-MVP)** | ⏳ Optional |
+| **8. Security** | **JWT Token Rotation & SHA Hash Chain** | Single-use JWT refresh token rotation + SHA-256 audit log hash-chaining | **MANDATORY DAY 1** | ⏳ Implemented |
+| **8. Security** | **3-Pass DoD Shredding** | Ephemeral LUKS2 volume encryption + 3-pass DoD 5220.22-M storage shredding (`shred -n 3 -z`) | **MANDATORY DAY 1** | ⏳ Implemented |
+| **8. Security** | **CI/CD Vulnerability Scanning** | Trivy container image scanning + Semgrep SAST scanning in GitHub Actions | **MANDATORY DAY 1** | ⏳ Configured |
+| **8. Security** | **gVisor / Kata Containers** | User-space syscall proxy interposer preventing host root breakouts | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
+| **8. Security** | **eBPF/XDP LAN & Mining Blocker** | Kernel XDP filter dropping LAN IPs (`192.168.x.x`) and Stratum mining pools | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
+| **8. Security** | **WebAuthn Passkeys / Hardware 2FA** | FIDO2 YubiKey / Touch ID biometric authentication | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
+| **8. Security** | **Confidential Computing (SEV/TDX)** | Remote hardware attestation (AMD KDS / Intel PCS / NVIDIA NRAS) | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
 | **9. QA Gate** | **5–10 Closed Beta Sign-Off** | Validate end-to-end rental & payment journey with 5–10 friendly beta users | **MANDATORY DAY 1** | ⏳ Pending Beta |
 | **9. QA Gate** | **72-Hour 1,000-User Soak Test** | 72-hour continuous Locust load test under 1,000 simulated users | **DEFERRED (Post-MVP)** | ⏳ Optional |
 
@@ -181,3 +186,32 @@ To launch fast without over-engineering or spending unnecessary money, use this 
 
 ### 6.2 72-Hour Load & Soak Test `[DEFERRED FOR POST-MVP]`
 - **Steps**: Run 72-hour continuous Locust load test (`backend/tests/load/locustfile.py`) under 1,000 simulated users.
+
+---
+
+## Category 7: Advanced Multi-Layer Security Architecture & Anti-Hacker Hardening
+
+### 7.1 MicroVM & Container Sandboxing (Guest-to-Host Protection)
+- **gVisor / Kata Containers Interposer `[DEFERRED FOR POST-MVP]`**: Intercept and sanitize Linux system calls at user-space (`ptrace`/`kvm`) to prevent kernel zero-day breakouts (*Dirty COW*, *Use-After-Free*) from guest containers into host root shells.
+- **Seccomp-BPF & AppArmor Profile Enforcement `[MANDATORY DAY 1: Basic Seccomp | DEFERRED: Custom AppArmor]`**: Restrict MicroVM container privileges to ~50 essential Linux system calls, blocking dangerous kernel calls (`ptrace`, `bpf`, `kexec_load`, `unshare`, `mount`).
+- **Rootless MicroVM Execution (`rootlesskit` / User Namespaces) `[DEFERRED FOR POST-MVP]`**: Run Firecracker/Docker containers without host `root` privileges so breakouts land in an unprivileged `nobody` user namespace.
+
+### 7.2 Network Isolation & Anti-Abuse Firewall
+- **eBPF/XDP MicroVM Network Isolation `[DEFERRED FOR POST-MVP]`**: Attach eBPF programs to MicroVM virtual interfaces to block guest instances from scanning host LAN IPs (`192.168.x.x`, `10.x.x.x`, `172.16.x.x`) or accessing cloud metadata (`169.254.169.254`).
+- **Real-Time Cryptomining & Egress Blocker `[DEFERRED FOR POST-MVP]`**: Inspect outbound packet headers for Stratum mining pool protocols (`stratum+tcp://`, `xmrig`) and TCP SYN port scanning, auto-terminating abusive instances in **< 1 second**.
+- **mTLS with Hardware TPM 2.0 Pinning `[DEFERRED FOR POST-MVP]`**: Pin private mTLS certificates inside host TPM 2.0 chips so host authentication keys cannot be stolen or cloned.
+
+### 7.3 Application & API Security
+- **WebAuthn / Passkeys (Hardware 2FA) `[DEFERRED FOR POST-MVP]`**: Add native FIDO2 WebAuthn biometric 2FA (YubiKey / Touch ID / Face ID) for developer and host admin logins.
+- **Short-Lived Ephemeral JWTs & Single-Use Refresh Token Rotation `[MANDATORY DAY 1]`**: 15-minute access token lifespan with single-use refresh token rotation; replaying a refresh token instantly revokes all user sessions.
+- **AWS KMS / Vault Envelope Encryption `[DEFERRED FOR POST-MVP]`**: Encrypt sensitive database columns (KYC details, API tokens, bank account details) using AES-256-GCM envelope encryption keys stored in Hardware Security Modules (HSM).
+
+### 7.4 Confidential Computing & Cryptographic Data Privacy
+- **Hardware Remote Attestation (AMD SEV-SNP / Intel TDX / NVIDIA Hopper TEE) `[DEFERRED FOR POST-MVP]`**: Query hardware security processors (AMD KDS / Intel PCS / NVIDIA NRAS) before deploying workloads to guarantee guest RAM is encrypted at the CPU/GPU hardware level.
+- **LUKS2 Storage Encryption & 3-Pass DoD Data Shredding `[MANDATORY DAY 1]`**: Format MicroVM storage with ephemeral LUKS2 keys. Upon instance termination, destroy RAM keys and execute 3-pass DoD 5220.22-M data shredding (`shred -n 3 -z`) to prevent host recovery of developer datasets or model weights.
+- **Ed25519 Signed Execution Proof Certificates `[DEFERRED FOR POST-MVP]`**: Issue cryptographically signed execution certificates (`Ed25519`) post-rental confirming zero unauthorized host memory access during compute runs.
+
+### 7.5 Automated SecOps & Threat Intelligence
+- **Automated CI/CD Vulnerability Scanning (Trivy + Semgrep) `[MANDATORY DAY 1]`**: Scan container images, Python packages, and npm dependencies for CVEs in GitHub Actions before code merges.
+- **Immutable Audit Logs with SHA-256 Hash Chaining `[MANDATORY DAY 1]`**: Link security audit log entries (`SecurityAuditLog`) with SHA-256 cryptographic hashes (`hash_i = Hash(hash_{i-1} + log_data)`), preventing DB admins from tampering with past audit logs.
+- **Honeypot Decoy Listings & Multi-Account Fraud Ring Detector `[DEFERRED FOR POST-MVP]`**: Deploy decoy GPU listings to detect automated bot scanners, fake host registration rings, and stolen credit card testing.

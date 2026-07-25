@@ -128,7 +128,15 @@ class Host(Base):
         String(64), nullable=True, unique=True, index=True,
         comment="SHA-256 fingerprint of client cert issued at registration"
     )
-    # Verification flags
+    # Verification & Trust (v8 Extension)
+    verification_level: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unverified", index=True,
+        comment="unverified, silver, gold, enterprise"
+    )
+    trust_state: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="building_trust", index=True,
+        comment="new, building_trust, established, flagged, suspended, restored, permanently_banned"
+    )
     spec_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     benchmark_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     flagged_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -461,10 +469,81 @@ class HostCommand(Base):
         nullable=False,
     )
     acked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
+# ── HostVerification & VerificationDocument ──────────────────────────────
+
+class HostVerification(Base):
+    """
+    v8 Feature 3 — Tiered host verification applications and review status.
+    """
+    __tablename__ = "host_verifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("hosts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    level: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="silver", index=True,
+        comment="silver, gold, enterprise"
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", index=True,
+        comment="pending, in_review, approved, rejected, revoked"
+    )
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    __table_args__ = (
-        Index("ix_host_commands_host_instance", "host_id", "instance_id"),
+    documents: Mapped[list["VerificationDocument"]] = relationship(
+        "VerificationDocument", back_populates="verification", cascade="all, delete-orphan"
     )
 
+
+class VerificationDocument(Base):
+    """
+    v8 Feature 3 — Uploaded documents supporting verification applications.
+    """
+    __tablename__ = "verification_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    verification_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("host_verifications.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_type: Mapped[str] = mapped_column(
+        String(64), nullable=False,
+        comment="gov_id, business_registration, bank_statement, utility_bill"
+    )
+    storage_url: Mapped[str] = mapped_column(
+        String(512), nullable=False
+    )
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending"
+    )
+
+    verification: Mapped["HostVerification"] = relationship(
+        "HostVerification", back_populates="documents"
+    )

@@ -21,6 +21,7 @@ from libs.db_models.database import get_db_session
 from services.marketplace_service import availability as avail
 from services.marketplace_service.config import get_settings
 from services.marketplace_service.repository import ListingRepository
+from services.marketplace_service import schemas
 from services.marketplace_service.schemas import (
     ListingBrief,
     ListingCreate,
@@ -304,3 +305,124 @@ async def delist_listing(
     await repo.delist(listing)
     await session.commit()
     await avail.mark_unavailable(settings.redis_url, listing.id)
+
+
+# ── Smart Search & GPU Benchmark DB Routers (v8 Features 4 & 5) ───────────────
+
+search_router = APIRouter(prefix="/search", tags=["Search"])
+benchmark_router = APIRouter(prefix="/benchmarks", tags=["Benchmarks"])
+
+
+@search_router.get(
+    "/listings",
+    response_model=list[schemas.SearchableListingResponse],
+    summary="Multi-attribute smart search over searchable listings catalog",
+)
+async def search_listings_smart(
+    gpu_model: str | None = None,
+    cuda_version: str | None = None,
+    min_vram: float | None = None,
+    min_tensor_perf: float | None = None,
+    min_health_score: float | None = None,
+    min_reputation: float | None = None,
+    verification_level: str | None = None,
+    max_price: float | None = None,
+    region: str | None = None,
+    country: str | None = None,
+    min_cpu_cores: int | None = None,
+    min_ram_gb: float | None = None,
+    storage_type: str | None = None,
+    os: str | None = None,
+    sort: str = "value",
+    offset: int = 0,
+    limit: int = 20,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.marketplace_service.search_engine import execute_smart_search
+    filters = {
+        "gpu_model": gpu_model,
+        "cuda_version": cuda_version,
+        "min_vram": min_vram,
+        "min_tensor_perf": min_tensor_perf,
+        "min_health_score": min_health_score,
+        "min_reputation": min_reputation,
+        "verification_level": verification_level,
+        "max_price": max_price,
+        "region": region,
+        "country": country,
+        "min_cpu_cores": min_cpu_cores,
+        "min_ram_gb": min_ram_gb,
+        "storage_type": storage_type,
+        "os": os,
+        "sort": sort,
+        "offset": offset,
+        "limit": limit,
+    }
+    return await execute_smart_search(session, filters)
+
+
+@search_router.post(
+    "/sync",
+    summary="Trigger full sync sweep of listings into searchable_listings",
+)
+async def sync_listings_smart(
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.marketplace_service.search_engine import sync_all_searchable_listings
+    count = await sync_all_searchable_listings(session)
+    await session.commit()
+    return {"status": "synced", "count": count}
+
+
+@benchmark_router.get(
+    "/gpu-models",
+    response_model=list[schemas.GpuModelSummaryResponse],
+    summary="List tracked GPU models with aggregate benchmark summary stats",
+)
+async def get_gpu_models_benchmarks(
+    model: str | None = None,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.reputation_pricing_service.benchmark_analytics import get_gpu_model_summaries
+    return await get_gpu_model_summaries(session, model=model)
+
+
+@benchmark_router.get(
+    "/gpu-models/{model}",
+    response_model=list[schemas.GpuModelSummaryResponse],
+    summary="Detail aggregate benchmark stats for a specific GPU model",
+)
+async def get_gpu_model_benchmark_detail(
+    model: str,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.reputation_pricing_service.benchmark_analytics import get_gpu_model_summaries
+    return await get_gpu_model_summaries(session, model=model)
+
+
+@benchmark_router.get(
+    "/gpu-models/{model}/compare",
+    response_model=schemas.GpuModelCompareResponse,
+    summary="Side-by-side performance comparison of two GPU models",
+)
+async def compare_gpu_models_endpoint(
+    model: str,
+    with_model: str,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.reputation_pricing_service.benchmark_analytics import compare_gpu_models
+    return await compare_gpu_models(session, model_a=model, model_b=with_model)
+
+
+@benchmark_router.get(
+    "/price-performance",
+    response_model=list[schemas.PricePerformanceResponse],
+    summary="Ranked GPU models by score-per-dollar price/performance ratio",
+)
+async def get_price_performance_rankings_endpoint(
+    region: str | None = None,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.reputation_pricing_service.benchmark_analytics import get_price_performance_rankings
+    return await get_price_performance_rankings(session, region=region, limit=limit)

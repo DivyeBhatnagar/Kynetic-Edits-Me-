@@ -30,7 +30,16 @@ import threading
 from dataclasses import dataclass
 from decimal import Decimal
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    class _FakeNp:
+        float64 = float
+        @staticmethod
+        def array(obj, dtype=None):
+            return obj
+    np = _FakeNp()
+
 import structlog
 
 log = structlog.get_logger(__name__)

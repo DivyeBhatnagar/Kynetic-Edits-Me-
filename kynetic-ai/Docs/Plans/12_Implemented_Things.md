@@ -270,19 +270,101 @@ Implementation Plan v7 replaces traditional two-party billing with a **three-par
 
 ---
 
+## 📜 PART 4: v8 Extension Specification (Feature 1 — GPU Benchmark & Health Score)
+
+Implementation Plan v8 extends `reputation_pricing_service` and Host Agent hardware characterisation with peer-group normalised sub-benchmark scoring, fraud/envelope detection, and trailing 7-day thermal/clock/power health scores.
+
+### Feature 1 — GPU Benchmark & Health Score Infrastructure
+- **Peer-Group Normalisation Engine ([benchmark_suite.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/reputation_pricing_service/benchmark_suite.py))**:
+  - `compute_performance_score(...)`: Normalises tensor FP16 TFLOPS, FP32 TFLOPS, and GPU memory bandwidth (GB/s) against same-model GPU peer envelopes (`gpu_model_envelopes`). Re-normalises weights when sub-metrics are missing; defaults to 1.0 (best in class) for single-machine fleets.
+  - `compute_health_score(...)`: Computes rolling 7-day thermal, core clock, and power draw stability scores from heartbeat telemetry using inverse coefficient of variation ($1 - \frac{\text{std}}{\text{mean}}$).
+  - `compute_host_composite(...)`: Combines Performance Score (50%), Health Score (30%), and Reliability Score (20%) into a unified HostScore.
+- **Fraud & Envelope Detector**:
+  - `check_envelope(...)`: Compares measuring outputs against admin-maintained `GpuModelEnvelope` bounds. Flags results below minimum (hardware mismatch/throttling) or above maximum (spoofed hardware).
+- **Sub-Benchmark & Host Score DB Models ([reputation_pricing_models.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/db_models/reputation_pricing_models.py))**:
+  - `HostBenchmarkRun` (`host_benchmark_runs`): Stores individual sub-test results (`gpu_fp16_tflops`, `gpu_fp32_tflops`, `gpu_mem_bandwidth_gbps`, `disk_seq_mbps`, `net_bandwidth_mbps`) grouped by `run_id`.
+  - `HostScore` (`host_scores`): Append-only score snapshots storing performance, health, reliability, and composite scores along with explainability breakdowns.
+  - `GpuModelEnvelope` (`gpu_model_envelopes`): Min/max performance bounds per (GPU model, metric) for fraud protection.
+- **Benchmark & Scores API Routes ([routes.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/reputation_pricing_service/routes.py))**:
+  - `POST /v1/hosts/{id}/benchmarks/run`: Ingests sub-benchmark results from Host Agent, executes envelope checks, records sub-test runs, and triggers score recomputation.
+  - `GET /v1/hosts/{id}/scores`: Returns HostScore response with performance breakdown (peer-normalised TFLOPS, VRAM BW, peer group size) and health breakdown (thermal, clock, power stability).
+  - `GET /v1/hosts/{id}/benchmarks/history`: Returns time-series history of sub-test benchmark runs for trend charts.
+
+### Feature 2 — Host Reputation System & Time-Decay Engine
+- **Reputation Event Engine ([reputation_engine.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/reputation_pricing_service/reputation_engine.py))**:
+  - `emit_reputation_event(...)`: Appends immutable events to `reputation_events` (`job_completed`, `job_cancelled`, `job_failed`, `dispute_opened`, `refund_issued`, `violation_flagged`, `manual_penalty`, `manual_restore`). Anti-gaming penalty applied to cancelled jobs (`-0.0200`).
+  - `compute_decayed_reputation(...)`: Recomputes host composite score using exponential time-decay ($e^{-\lambda t}$, 30-day half-life), updating component metrics (`job_success_rate`, `completed_jobs`, `cancelled_jobs`, `failed_jobs`, `dispute_count`, `refund_count`, `policy_violation_count`). Evaluates trust state transitions (`building_trust` ➔ `established` or `flagged`).
+  - Admin Overrides: `apply_manual_penalty(...)` and `apply_manual_restore(...)` for audit-logged administrative actions.
+- **Reputation History & Admin API ([routes.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/reputation_pricing_service/routes.py))**:
+  - `GET /v1/hosts/{id}/reputation/history`: Returns time-series history log of reputation events.
+  - `POST /v1/admin/hosts/{id}/reputation/penalty`: Issues audit-logged manual penalty.
+  - `POST /v1/admin/hosts/{id}/reputation/restore`: Issues audit-logged manual score restoration.
+
+### Feature 3 — Verified Hosts Program (Silver, Gold, Enterprise)
+- **Verified Hosts Engine ([verification_service.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/host_service/verification_service.py))**:
+  - `apply_for_verification(...)`: Submits verification applications with document attachments (`gov_id`, `business_registration`, `bank_statement`, `utility_bill`).
+  - `evaluate_automatic_silver_verification(...)`: Automated Silver verification check (user phone/email verification + payment account), auto-approving level to `silver`.
+  - `evaluate_gold_eligibility(...)`: Checks Silver status + verified payout account + composite reputation score $\ge 0.70$.
+  - `process_admin_review(...)`: Admin review decision (`approved`/`rejected`), upgrading host `verification_level` and emitting a reputation boost event (`+0.1500`).
+  - `revoke_host_verification(...)`: Revocation cascade resetting level to `unverified`, host `trust_state` to `flagged`, and emitting a `violation_flagged` penalty event (`-0.3500`).
+- **Verification API Routes ([routes.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/host_service/routes.py))**:
+  - `POST /hosts/{id}/verification/apply`: Ingests application and document payloads.
+  - `GET /hosts/{id}/verification/status`: Returns current verification level, trust state, and application status.
+  - `POST /hosts/verifications/{id}/approve` & `/reject`: Admin review queue decision endpoints.
+  - `POST /hosts/{id}/verification/revoke`: Admin revocation endpoint.
+
+### Feature 4 — GPU Benchmark Database & Analytics Engine
+- **Benchmark Analytics Engine ([benchmark_analytics.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/reputation_pricing_service/benchmark_analytics.py))**:
+  - `refresh_gpu_benchmark_analytics(...)`: Aggregates FP16/FP32 TFLOPS, VRAM bandwidth, and sample counts into `GpuModelStats` (`gpu_model_stats`), and score-per-dollar ratios into `PricePerformanceStats` (`price_performance_stats`).
+  - `get_gpu_model_summaries(...)`: Fetches list and detail aggregate stats per GPU model.
+  - `compare_gpu_models(...)`: Computes side-by-side performance comparison and throughput speedup ratios.
+  - `get_price_performance_rankings(...)`: Returns ranked GPU models by price-performance ratio.
+- **Benchmark Analytics API Routes ([routes.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/marketplace_service/routes.py))**:
+  - `GET /benchmarks/gpu-models`: Returns summary stats for tracked GPU models.
+  - `GET /benchmarks/gpu-models/{model}`: Detailed stats breakdown.
+  - `GET /benchmarks/gpu-models/{model}/compare?with=X`: Side-by-side comparison endpoint.
+  - `GET /benchmarks/price-performance`: Ranked price-performance list.
+
+### Feature 5 — Smart Search Engine
+- **Search Denormalized DB Model & Engine ([search_engine.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/marketplace_service/search_engine.py))**:
+  - `SearchableListing` (`searchable_listings` table): Denormalized table storing listing specs, GPU TFLOPS, performance score, health score, reputation composite score, verification level, price, and region.
+  - `sync_searchable_listing(...)`: Event-driven upsert function keeping `searchable_listings` in sync when listings, host scores, or verifications update.
+  - `execute_smart_search(...)`: Multi-attribute search query engine supporting composable filters (`gpu_model`, `min_vram`, `min_tensor_perf`, `min_health_score`, `min_reputation`, `verification_level`, `max_price`, `region`, `os`) and sorting (`price`, `performance`, `value`, `reputation`, `newest`) with cursor pagination.
+- **Smart Search API Routes ([routes.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/services/marketplace_service/routes.py))**:
+  - `GET /search/listings`: Multi-attribute smart search endpoint.
+  - `POST /search/sync`: Trigger full sync sweep of listings catalog.
+
+### Feature 6 — One Command Launch CLI (`kynetic launch`)
+- **CLI Launch Command ([cli.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/cli/kynetic_cli/cli.py))**:
+  - `kynetic launch`: Single-command terminal workflow orchestrating search (`GET /search/listings`) ➔ selection ➔ provisioning (`POST /v1/instances`) ➔ auto-connection PTY shell.
+  - Non-Interactive / CI Flags: `--gpu`, `--region`, `--max-price`, `--hours`, `--yes` (`-y`).
+  - Idempotent Resume: `--resume <instance_id>` recovers cleanly without duplicate provisioning.
+
+### Feature 7 — System Integration & Cross-Feature Synthesis
+- **System Integration**: End-to-end synergy across all 6 v8 features (Hardware Benchmark ➔ Health Score ➔ Reputation ➔ Tiered Verification ➔ Analytics DB ➔ Smart Search ➔ One Command Launch CLI).
+
+---
+
 ## 📊 Combined Summary Matrix of All Built Components
 
 | Category | Component / Module | Implementation Status |
 | :--- | :--- | :--- |
 | **Frontend Web App** | Next.js 16 App Router, React 19, Tailwind CSS v4, Zustand Store, Recharts Charts | ✅ 100% Implemented (Phases 1–18) |
-| **CLI Executable** | 100% Python (`Click`, `Rich`, `httpx`, `Pydantic V2`, `keyring`) — `login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`, `stop`, `terminate` | ✅ 100% Implemented (Phases A–F, G) |
-| **Backend Services** | 11 FastAPI Microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`) | ✅ 100% Implemented (Phases 1–31) |
+| **CLI Executable** | 100% Python (`Click`, `Rich`, `httpx`, `Pydantic V2`, `keyring`) — `login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`, `stop`, `terminate` | ✅ 100% Implemented (Phases A–F, G, v8 Launch) |
+| **Backend Services** | 11 FastAPI Microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`) | ✅ 100% Implemented (Phases 1–31, v8 Features 1–7) |
 | **Host Agent** | Python Host Daemon, NVML GPU Collector, Benchmark Engine, Firecracker VM Manager, WireGuard Relay, Idempotency Store, Abuse Detector | ✅ 100% Implemented (Phases 2, 29, D, J) |
 | **Tunnel Gateway** | Reverse-dial WebSocket relay cluster, connection tickets, multiplexed PTY streams | ✅ 100% Implemented (Phase E, F) |
 | **Confidential Computing** | AMD SEV-SNP, Intel TDX, NVIDIA Hopper TEE, Ephemeral LUKS2 Encryption, 3-Pass DoD Shredding, Ed25519 Execution Certificates | ✅ 100% Implemented (Phases 19–26) |
 | **Marketplace Payment & Ledger** | 3-Party Marketplace Payments, Balanced Double-Entry Ledger, Priority Commission Engine, Host KYC Onboarding, Payout Engine, Cashfree/Razorpay/Stripe Adapters | ✅ 100% Implemented (Phases 3, 10, 28, I, P1–P7) |
+| **Benchmark & Health Engine** | Peer-Group Normalised GPU Benchmarking (FP16/FP32 TFLOPS, VRAM BW), Fraud Envelope Check, Rolling 7-Day Thermal/Clock/Power Health Score | ✅ 100% Implemented (v8 Feature 1) |
+| **Reputation & Verification** | Append-Only Event Log, Time-Decay Score Engine, Anti-Gaming Safeguards, Tiered Verification (Silver/Gold/Enterprise), Revocation Cascades | ✅ 100% Implemented (v8 Features 2 & 3) |
+| **GPU Analytics & Smart Search** | GPU Benchmark Database (`gpu_model_stats`), Price/Performance Rankings (`price_performance_stats`), Denormalized `searchable_listings` Catalog, Smart Search Engine | ✅ 100% Implemented (v8 Features 4 & 5) |
+| **One-Command CLI & Synthesis** | Interactive & Scriptable `kynetic launch` Wizard, Auto-Connect PTY Splicing, Idempotent `--resume`, System-Wide v8 Cross-Feature Integration | ✅ 100% Implemented (v8 Features 6 & 7) |
 | **Security & Trust** | Progressive Trust Tiers, Device Fingerprinting, Admin Emergency Kill Switch, eBPF XDP Firewall, Audit Logger, Application-Layer KYC Encryption | ✅ 100% Implemented (Phases 5, 26, 31, J, P3) |
 | **Scheduler Engine** | Weighted 6-Factor Scheduler (§9) — Price, TFLOPS, Reputation, Latency, Availability + 5% Jitter | ✅ 100% Implemented (Phases 7, H) |
 | **Observability** | Prometheus Metrics Exporter (`/metrics`), Grafana Dashboards, Structured JSON Logger | ✅ 100% Implemented (Phases 11, 13, K) |
-| **Test Suite** | Pytest Suite with 37 Passing Integration Tests across all 19 Phases (Phases A–L & P1–P7) | ✅ 100% Implemented (37/37 Passed) |
+| **Test Suite** | Pytest Suite with 56 Passing Integration Tests across all v6, v7, and v8 Features (v6 Phases A–L, v7 Phases P1–P7, & v8 Features 1–7) | ✅ 100% Implemented (56/56 Passed) |
+
+
+
 

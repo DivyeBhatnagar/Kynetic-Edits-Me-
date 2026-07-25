@@ -115,6 +115,71 @@ class ListingBrief(BaseModel):
 
 # ── Search / Filter ────────────────────────────────────────────────────────
 
+class ListingFilters(BaseModel):
+    """Query parameters for GET /search/listings."""
+
+    resource_type: ResourceType | None = None
+    gpu_model: str | None = None
+    min_vram_gb: float | None = None
+    max_price_usd: Decimal | None = None
+    region: str | None = None
+    min_reputation: float | None = None
+    sort: str = "price_asc"
+    offset: int = Field(0, ge=0)
+    limit: int = Field(20, ge=1, le=100)
+
+
+# ── Smart Search & GPU Benchmark DB Schemas (v8 Features 4 & 5) ─────────────
+
+class SearchableListingResponse(BaseModel):
+    listing_id: uuid.UUID
+    host_id: uuid.UUID
+    gpu_model: str | None = None
+    vram_gb: float | None = None
+    tensor_fp16_tflops: float | None = None
+    performance_score: float | None = None
+    health_score: float | None = None
+    reputation_composite_score: float | None = None
+    verification_level: str = "unverified"
+    price_per_hour_usd: float
+    price_per_hour_inr: float
+    region: str = "us-east"
+    cpu_cores: int | None = None
+    ram_gb: float | None = None
+    storage_gb: float | None = None
+    os_type: str | None = None
+    availability_status: str = "active"
+    created_at: str
+
+
+class GpuModelSummaryResponse(BaseModel):
+    gpu_model: str
+    region: str = "global"
+    avg_tensor_fp16_tflops: float | None = None
+    avg_tensor_fp32_tflops: float | None = None
+    avg_mem_bandwidth_gbps: float | None = None
+    sample_count: int = 0
+    last_refreshed: str
+
+
+class GpuModelCompareResponse(BaseModel):
+    model_a: str
+    model_b: str
+    stats_a: GpuModelSummaryResponse | None = None
+    stats_b: GpuModelSummaryResponse | None = None
+    speedup_ratio_fp16: float | None = None
+    recommendation: str
+
+
+class PricePerformanceResponse(BaseModel):
+    gpu_model: str
+    region: str = "global"
+    avg_price_per_hour_usd: float
+    avg_performance_score: float
+    price_performance_ratio: float
+    last_refreshed: str
+
+
 class ListingSearchParams(BaseModel):
     """Query parameters for GET /listings."""
 

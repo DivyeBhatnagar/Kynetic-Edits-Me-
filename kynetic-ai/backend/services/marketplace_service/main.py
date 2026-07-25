@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from libs.common.logging import configure_logging
 from services.marketplace_service.config import get_settings
-from services.marketplace_service.routes import router
+from services.marketplace_service.routes import benchmark_router, router, search_router
 
 settings = get_settings()
 configure_logging(log_level=settings.log_level)
@@ -31,6 +31,8 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(search_router)
+app.include_router(benchmark_router)
 
 
 @app.get("/healthz", tags=["Health"])

@@ -214,3 +214,174 @@ def predict_idle_time_batch(self) -> dict:
         return {"hosts_processed": count}
 
     return _run_async(_batch())
+
+
+# ── v8 Feature 1: Benchmark & Host Scores Tasks ──────────────────────────────
+
+async def _recompute_benchmark_scores_for_host(
+    host_id: uuid.UUID,
+    session: AsyncSession | None = None,
+) -> dict:
+    """
+    Core async logic for recomputing HostScores (performance, health, reliability, composite).
+    """
+    from sqlalchemy import text
+    from services.reputation_pricing_service.benchmark_suite import (
+        BenchmarkRunInput,
+        HeartbeatSample,
+        compute_host_composite,
+        compute_health_score,
+        compute_performance_score,
+    )
+    from services.reputation_pricing_service.repository import (
+        get_heartbeats_for_health,
+        get_latest_benchmark_runs,
+        get_latest_reputation,
+        get_peer_envelopes,
+        save_host_score,
+    )
+
+    async def _compute_on_session(sess: AsyncSession) -> dict:
+        # 1. Fetch host's GPU model from listings or host_hardware_specs
+        h_res = await sess.execute(
+            text("SELECT gpu_model FROM listings WHERE host_id = :host_id LIMIT 1"),
+            {"host_id": str(host_id)},
+        )
+        h_row = h_res.first()
+        gpu_model = h_row[0] if h_row and h_row[0] else None
+
+        if not gpu_model:
+            h_res2 = await sess.execute(
+                text("SELECT gpu_model FROM host_hardware_specs WHERE host_id = :host_id ORDER BY reported_at DESC LIMIT 1"),
+                {"host_id": str(host_id)},
+            )
+            h_row2 = h_res2.first()
+            gpu_model = h_row2[0] if h_row2 and h_row2[0] else "RTX 4090"
+
+        # 2. Latest benchmark runs
+        raw_runs = await get_latest_benchmark_runs(sess, host_id)
+        run_inputs = [
+            BenchmarkRunInput(
+                benchmark_type=r["benchmark_type"],
+                value=float(r["value"]),
+                unit=r["unit"],
+                gpu_model=r.get("gpu_model") or gpu_model,
+                cuda_version=r.get("cuda_version"),
+                driver_version=r.get("driver_version"),
+            )
+            for r in raw_runs
+        ]
+        run_id = raw_runs[0]["run_id"] if raw_runs else None
+
+        # 3. Peer envelopes for GPU model
+        envelopes = await get_peer_envelopes(sess, gpu_model)
+
+        # 4. Performance score
+        perf_res = compute_performance_score(run_inputs, envelopes)
+
+        # 5. Health score from rolling trailing 7-day heartbeats
+        hb_rows = await get_heartbeats_for_health(sess, host_id, window_days=7)
+        hb_samples = [
+            HeartbeatSample(
+                gpu_temperature_celsius=float(r["temperature_c"]) if r["temperature_c"] is not None else None,
+                power_draw_watts=float(r["power_draw_w"]) if r["power_draw_w"] is not None else None,
+            )
+            for r in hb_rows
+        ]
+        health_res = compute_health_score(hb_samples)
+
+        # 6. Reliability score from latest reputation composite
+        latest_rep = await get_latest_reputation(sess, host_id)
+        reliability_score = float(latest_rep["composite_score"]) if latest_rep else None
+
+        # 7. Overall HostScore composite
+        composite = compute_host_composite(
+            perf_res.performance_score,
+            health_res.health_score,
+            reliability_score,
+        )
+
+        # 8. Save HostScore
+        await save_host_score(
+            sess,
+            host_id,
+            perf_res,
+            health_res,
+            reliability_score,
+            composite,
+            gpu_model=gpu_model,
+            benchmark_run_id=run_id,
+        )
+
+        log.info(
+            "host_scores.recomputed",
+            host_id=str(host_id),
+            perf=perf_res.performance_score,
+            health=health_res.health_score,
+            reliability=reliability_score,
+            composite=composite,
+        )
+
+        return {
+            "host_id": str(host_id),
+            "performance_score": perf_res.performance_score,
+            "health_score": health_res.health_score,
+            "reliability_score": reliability_score,
+            "composite_score": composite,
+        }
+
+    if session is not None:
+        return await _compute_on_session(session)
+
+    from libs.db_models.database import AsyncSessionFactory
+    async with AsyncSessionFactory() as new_session:
+        res = await _compute_on_session(new_session)
+        await new_session.commit()
+        return res
+
+
+@celery_app.task(
+    name="services.reputation_pricing_service.tasks.recompute_benchmark_scores",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def recompute_benchmark_scores(self, host_id: str) -> dict:
+    """
+    Triggered after a new benchmark suite finishes on a host agent.
+    """
+    try:
+        return _run_async(_recompute_benchmark_scores_for_host(uuid.UUID(host_id)))
+    except Exception as exc:
+        log.error("benchmark_scores.task_failed", host_id=host_id, error=str(exc))
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(
+    name="services.reputation_pricing_service.tasks.benchmark_sweep",
+    bind=True,
+)
+def benchmark_sweep(self) -> dict:
+    """
+    Daily Celery Beat task: recompute HostScores for all hosts with benchmark history.
+    """
+    async def _sweep():
+        from sqlalchemy import text
+        from libs.db_models.database import AsyncSessionFactory
+
+        async with AsyncSessionFactory() as session:
+            result = await session.execute(
+                text("SELECT DISTINCT host_id FROM host_benchmark_runs")
+            )
+            host_ids = [row[0] for row in result.fetchall()]
+
+        processed = 0
+        for hid in host_ids:
+            await _recompute_benchmark_scores_for_host(hid)
+            processed += 1
+
+        log.info("benchmark_sweep.completed", hosts=processed)
+        return {"hosts_processed": processed}
+
+    return _run_async(_sweep())
+

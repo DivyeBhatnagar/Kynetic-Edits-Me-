@@ -142,9 +142,33 @@ class HostResponse(BaseModel):
     agent_version: str
     spec_verified: bool
     benchmark_verified: bool
-    flagged_reason: str | None
-    created_at: datetime
-    updated_at: datetime
+    flagged_reason: str | None = None
+    verification_level: str = "unverified"
+    trust_state: str = "building_trust"
+    hardware: HardwareSpecResponse | None = None
     latest_spec: HardwareSpecResponse | None = None
+    created_at: datetime
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
+
+
+# ── Verification Schemas (v8 Feature 3) ───────────────────────────────────────
+
+class VerificationDocumentSchema(BaseModel):
+    document_type: str = Field("gov_id", description="gov_id, business_registration, bank_statement, utility_bill")
+    storage_url: str = Field(..., description="Object storage S3/GCS URL")
+
+
+class ApplyVerificationRequest(BaseModel):
+    level: str = Field("silver", description="silver, gold, enterprise")
+    documents: list[VerificationDocumentSchema] = []
+
+
+class AdminReviewVerificationRequest(BaseModel):
+    decision: str = Field("approved", description="approved or rejected")
+    rejection_reason: str | None = None
+
+
+class AdminRevokeVerificationRequest(BaseModel):
+    reason: str = Field("Policy violation", description="Audit reason for revocation")

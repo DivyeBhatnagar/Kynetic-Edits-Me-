@@ -195,3 +195,90 @@ class StripeAccount(Base):
     __table_args__ = (
         UniqueConstraint("user_id", name="uq_stripe_accounts_user_id"),
     )
+
+
+# ── SearchableListing (v8 Feature 5) ──────────────────────────────────────────
+
+class SearchableListing(Base):
+    """
+    v8 Feature 5 — Denormalized search table for ultra-fast multi-attribute queries.
+    Kept in sync via event-driven upsert whenever listings, scores, or verifications change.
+    """
+    __tablename__ = "searchable_listings"
+
+    listing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, nullable=False
+    )
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    gpu_model: Mapped[str | None] = mapped_column(String(200), index=True)
+    cuda_version: Mapped[str | None] = mapped_column(String(50))
+    vram_gb: Mapped[float | None] = mapped_column(Numeric(10, 2), index=True)
+    tensor_fp16_tflops: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    performance_score: Mapped[float | None] = mapped_column(Numeric(4, 3), index=True)
+    health_score: Mapped[float | None] = mapped_column(Numeric(4, 3), index=True)
+    reputation_composite_score: Mapped[float | None] = mapped_column(Numeric(4, 3), index=True)
+    verification_level: Mapped[str] = mapped_column(String(32), default="unverified", index=True)
+    price_per_hour_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, index=True)
+    price_per_hour_inr: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    region: Mapped[str] = mapped_column(String(100), default="us-east", index=True)
+    country: Mapped[str | None] = mapped_column(String(50))
+    cpu_cores: Mapped[int | None] = mapped_column(Integer)
+    ram_gb: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    storage_gb: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    storage_type: Mapped[str | None] = mapped_column(String(50))
+    os_type: Mapped[str | None] = mapped_column(String(50))
+    availability_status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_searchable_listings_avail_region_price", "availability_status", "region", "price_per_hour_usd"),
+        Index("ix_searchable_listings_gpu_perf", "gpu_model", "performance_score"),
+    )
+
+
+# ── GPU Benchmark Analytics (v8 Feature 4) ───────────────────────────────────
+
+class GpuModelStats(Base):
+    """
+    v8 Feature 4 — Aggregate GPU performance stats per model and region.
+    """
+    __tablename__ = "gpu_model_stats"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    gpu_model: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    region: Mapped[str] = mapped_column(String(100), nullable=False, default="global", index=True)
+    avg_tensor_fp16_tflops: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    avg_tensor_fp32_tflops: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    avg_mem_bandwidth_gbps: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    sample_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_refreshed: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+
+class PricePerformanceStats(Base):
+    """
+    v8 Feature 4 — Aggregate price/performance rankings per model and region.
+    """
+    __tablename__ = "price_performance_stats"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+    )
+    gpu_model: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    region: Mapped[str] = mapped_column(String(100), nullable=False, default="global", index=True)
+    avg_price_per_hour_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    avg_performance_score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
+    price_performance_ratio: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False, index=True)
+    last_refreshed: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )

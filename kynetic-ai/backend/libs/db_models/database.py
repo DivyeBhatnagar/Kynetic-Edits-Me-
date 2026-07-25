@@ -65,6 +65,7 @@ async_session_factory = async_sessionmaker(
     expire_on_commit=False,      # Avoid lazy-load errors after commit
     autoflush=False,
 )
+AsyncSessionFactory = async_session_factory
 
 
 async def get_db_session() -> AsyncSession:

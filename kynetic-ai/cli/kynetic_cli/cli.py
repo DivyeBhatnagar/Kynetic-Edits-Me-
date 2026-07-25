@@ -113,24 +113,112 @@ from kynetic_cli.instance_client import InstanceClient
 
 
 @cli.command()
-@click.option("--listing", "listing_id", required=True, help="Listing ID to rent")
-@click.option("--template", "template_id", default=None, help="Optional Template ID")
+@click.option("--listing", "listing_id", default=None, help="Specific listing ID to rent")
+@click.option("--gpu", "gpu_model", default=None, help="Filter by GPU model (e.g. RTX 4090, A100)")
+@click.option("--region", default=None, help="Filter by region (e.g. us-east, eu-west)")
+@click.option("--max-price", type=float, default=None, help="Maximum price per hour ($USD)")
 @click.option("--hours", default=1.0, help="Hold duration requested in hours")
+@click.option("--template", "template_id", default=None, help="Optional Template ID")
+@click.option("--yes", "-y", "non_interactive", is_flag=True, help="Auto-confirm top-ranked listing without interactive prompt")
+@click.option("--resume", "resume_instance_id", default=None, help="Resume connection to an already provisioned instance ID")
 @click.pass_context
-def launch(ctx: click.Context, listing_id: str, template_id: Optional[str], hours: float):
-    """Launch a compute instance."""
+def launch(
+    ctx: click.Context,
+    listing_id: Optional[str],
+    gpu_model: Optional[str],
+    region: Optional[str],
+    max_price: Optional[float],
+    hours: float,
+    template_id: Optional[str],
+    non_interactive: bool,
+    resume_instance_id: Optional[str],
+):
+    """One-command launch: discover, provision, and auto-connect to compute."""
     api_url = ctx.obj["config"]["api_url"]
     client = InstanceClient(api_url)
+
+    # 1. Resume mode
+    if resume_instance_id:
+        console.print(f"[bold cyan]Resuming session for instance {resume_instance_id}...[/bold cyan]")
+        try:
+            inst = client.get_instance(resume_instance_id)
+            if inst.get("status") in ("running", "active"):
+                console.print("[bold green]✓ Instance is running. Auto-connecting...[/bold green]")
+                return ctx.invoke(connect, instance_id=resume_instance_id)
+            else:
+                console.print(f"[yellow]Instance {resume_instance_id} status is {inst.get('status')}. Polling...[/yellow]")
+        except Exception as e:
+            console.print(f"[bold red]Resume failed:[/bold red] {e}")
+            sys.exit(1)
+
+    selected_listing_id = listing_id
+
+    # 2. Search & Select if listing_id not directly provided
+    if not selected_listing_id:
+        console.print("[bold cyan]Searching marketplace listings...[/bold cyan]")
+        import httpx
+        try:
+            params = {}
+            if gpu_model:
+                params["gpu_model"] = gpu_model
+            if region:
+                params["region"] = region
+            if max_price:
+                params["max_price"] = max_price
+
+            with httpx.Client(timeout=5.0) as http:
+                resp = http.get(f"{api_url}/v1/search/listings", params=params)
+                if resp.status_code == 200:
+                    results = resp.json()
+                else:
+                    results = []
+
+            if not results:
+                # Fallback to direct listings query if search catalog empty
+                with httpx.Client(timeout=5.0) as http:
+                    resp = http.get(f"{api_url}/v1/listings", params=params)
+                    if resp.status_code == 200:
+                        raw = resp.json()
+                        results = raw.get("items", []) if isinstance(raw, dict) else raw
+                    else:
+                        results = []
+
+            if not results:
+                console.print("[bold red]No matching compute listings found for specified criteria.[/bold red]")
+                sys.exit(1)
+
+            top = results[0]
+            selected_listing_id = str(top.get("listing_id") or top.get("id"))
+            gpu_str = top.get("gpu_model") or "Compute Node"
+            price_str = top.get("price_per_hour_usd", 0.50)
+            verif_str = top.get("verification_level", "unverified")
+
+            console.print(f"[bold green]Found top-ranked match:[/bold green] {gpu_str} (${price_str}/hr, verified: {verif_str})")
+
+            if not non_interactive:
+                confirm = click.confirm(f"Launch instance on listing {selected_listing_id} for ~${float(price_str)*hours:.2f} ({hours}h)?", default=True)
+                if not confirm:
+                    console.print("[yellow]Launch cancelled by user.[/yellow]")
+                    return
+        except Exception as e:
+            console.print(f"[bold red]Search failed:[/bold red] {e}")
+            sys.exit(1)
+
+    # 3. Launch provisioning
+    console.print(f"[bold cyan]Launching instance provisioning (listing: {selected_listing_id})...[/bold cyan]")
     try:
-        data = client.launch(listing_id=listing_id, template_id=template_id, hours=hours)
+        data = client.launch(listing_id=selected_listing_id, template_id=template_id, hours=hours)
+        inst_id = data.get("id")
         if ctx.obj["json_output"]:
             import json
             console.print_json(json.dumps(data))
-        else:
-            console.print(f"[bold green]✓ Instance provisioning launched![/bold green]")
-            console.print(f"  [bold]Instance ID:[/bold] {data.get('id')}")
-            console.print(f"  [bold]Status:[/bold]      {data.get('status')}")
-            console.print(f"  [bold]Hold Amount:[/bold] ${data.get('hold_amount')}")
+            return
+
+        console.print(f"[bold green]✓ Provisioning launched![/bold green] Instance ID: [bold cyan]{inst_id}[/bold cyan]")
+        console.print("[dim]Polling status...[/dim]")
+
+        # Auto-connect after launch
+        ctx.invoke(connect, instance_id=str(inst_id))
     except Exception as e:
         console.print(f"[bold red]Launch failed:[/bold red] {e}")
         sys.exit(1)

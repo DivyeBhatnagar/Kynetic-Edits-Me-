@@ -14,6 +14,7 @@ from services.reputation_pricing_service.routes import (
     dashboard_router,
     pricing_router,
     reputation_router,
+    benchmark_router,
 )
 
 configure_logging()
@@ -44,6 +45,7 @@ app.add_middleware(
 app.include_router(reputation_router, prefix="/v1")
 app.include_router(dashboard_router, prefix="/v1")
 app.include_router(pricing_router, prefix="/v1")
+app.include_router(benchmark_router, prefix="/v1")
 
 
 @app.get("/health", include_in_schema=False)

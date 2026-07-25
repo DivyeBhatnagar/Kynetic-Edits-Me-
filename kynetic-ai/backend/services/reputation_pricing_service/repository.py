@@ -20,6 +20,9 @@ from libs.db_models.reputation_pricing_models import (
     IdlePrediction,
     PricingSuggestion,
     ReputationScore,
+    HostBenchmarkRun,
+    HostScore,
+    GpuModelEnvelope,
 )
 
 log = structlog.get_logger(__name__)
@@ -142,9 +145,9 @@ async def get_reputation_inputs(
             text("""
                 SELECT MIN(b.score) AS min_score, MAX(b.score) AS max_score
                 FROM host_benchmarks b
-                JOIN hosts h ON h.id = b.host_id
-                WHERE h.gpu_model = (
-                    SELECT gpu_model FROM hosts WHERE id = :host_id
+                JOIN listings l ON l.host_id = b.host_id
+                WHERE l.gpu_model = (
+                    SELECT gpu_model FROM listings WHERE host_id = :host_id LIMIT 1
                 )
             """),
             {"host_id": str(host_id)},
@@ -383,3 +386,295 @@ async def get_revenue_analytics(
         "total_jobs_completed": int(row.get("jobs_30d") or 0),
         "avg_job_duration_hours": float(row.get("avg_hours") or 0.0),
     }
+
+
+# ── v8 Feature 1: Benchmark & Host Scores Repository ─────────────────────────
+
+async def save_benchmark_runs(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+    run_id: uuid.UUID,
+    runs_data: list[dict],
+) -> list[HostBenchmarkRun]:
+    """
+    Save a batch of sub-test benchmark results sharing one run_id.
+    """
+    inserted = []
+    for data in runs_data:
+        row = HostBenchmarkRun(
+            host_id=host_id,
+            run_id=run_id,
+            benchmark_type=data["benchmark_type"],
+            value=Decimal(str(data["value"])),
+            unit=data["unit"],
+            flag_status=data.get("flag_status", "ok"),
+            flag_reason=data.get("flag_reason"),
+            gpu_model=data.get("gpu_model"),
+            cuda_version=data.get("cuda_version"),
+            driver_version=data.get("driver_version"),
+        )
+        session.add(row)
+        inserted.append(row)
+    return inserted
+
+
+async def get_latest_benchmark_runs(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+) -> list[dict]:
+    """
+    Fetch all sub-test rows belonging to the most recent run_id for a host.
+    """
+    from sqlalchemy import select
+    subq = (
+        select(HostBenchmarkRun.run_id)
+        .where(HostBenchmarkRun.host_id == host_id)
+        .order_by(HostBenchmarkRun.run_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    stmt = (
+        select(HostBenchmarkRun)
+        .where(
+            HostBenchmarkRun.host_id == host_id,
+            HostBenchmarkRun.run_id == subq,
+        )
+        .order_by(HostBenchmarkRun.benchmark_type.asc())
+    )
+    result = await session.execute(stmt)
+    scalars = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "host_id": r.host_id,
+            "run_id": r.run_id,
+            "benchmark_type": r.benchmark_type,
+            "value": float(r.value),
+            "unit": r.unit,
+            "flag_status": r.flag_status,
+            "flag_reason": r.flag_reason,
+            "gpu_model": r.gpu_model,
+            "cuda_version": r.cuda_version,
+            "driver_version": r.driver_version,
+            "run_at": r.run_at,
+        }
+        for r in scalars
+    ]
+
+
+async def get_benchmark_history(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+    limit: int = 50,
+    benchmark_type: str | None = None,
+) -> list[dict]:
+    """
+    Fetch time-series of benchmark runs for trend charts and history API.
+    """
+    from sqlalchemy import select
+    stmt = select(HostBenchmarkRun).where(HostBenchmarkRun.host_id == host_id)
+    if benchmark_type:
+        stmt = stmt.where(HostBenchmarkRun.benchmark_type == benchmark_type)
+    stmt = stmt.order_by(HostBenchmarkRun.run_at.desc()).limit(limit)
+
+    result = await session.execute(stmt)
+    scalars = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "host_id": r.host_id,
+            "run_id": r.run_id,
+            "benchmark_type": r.benchmark_type,
+            "value": float(r.value),
+            "unit": r.unit,
+            "flag_status": r.flag_status,
+            "flag_reason": r.flag_reason,
+            "gpu_model": r.gpu_model,
+            "cuda_version": r.cuda_version,
+            "driver_version": r.driver_version,
+            "run_at": r.run_at,
+        }
+        for r in scalars
+    ]
+
+
+async def get_peer_envelopes(
+    session: AsyncSession,
+    gpu_model: str,
+) -> dict[str, Any]:
+    """
+    Build peer envelopes for a GPU model.
+    Combines admin-defined envelopes (gpu_model_envelopes) with actual fleet peer statistics.
+    """
+    from sqlalchemy import select, func
+    from services.reputation_pricing_service.benchmark_suite import PeerEnvelope
+
+    # 1. Admin envelopes
+    admin_stmt = select(GpuModelEnvelope).where(func.lower(GpuModelEnvelope.gpu_model) == func.lower(gpu_model))
+    admin_res = await session.execute(admin_stmt)
+    admin_rows = admin_res.scalars().all()
+    admin_envelopes = {
+        r.benchmark_type: {
+            "benchmark_type": r.benchmark_type,
+            "min_value": float(r.min_value),
+            "max_value": float(r.max_value),
+            "unit": r.unit,
+        }
+        for r in admin_rows
+    }
+
+    # 2. Fleet statistics per metric for this GPU model
+    stats_stmt = (
+        select(
+            HostBenchmarkRun.benchmark_type,
+            func.min(HostBenchmarkRun.value).label("peer_min"),
+            func.max(HostBenchmarkRun.value).label("peer_max"),
+            func.count(func.distinct(HostBenchmarkRun.host_id)).label("peer_count"),
+        )
+        .where(
+            func.lower(HostBenchmarkRun.gpu_model) == func.lower(gpu_model),
+            HostBenchmarkRun.flag_status == "ok",
+        )
+        .group_by(HostBenchmarkRun.benchmark_type)
+    )
+    stats_res = await session.execute(stats_stmt)
+    fleet_stats = {
+        r[0]: {
+            "benchmark_type": r[0],
+            "peer_min": float(r[1]) if r[1] is not None else None,
+            "peer_max": float(r[2]) if r[2] is not None else None,
+            "peer_count": int(r[3]),
+        }
+        for r in stats_res.fetchall()
+    }
+
+    all_types = set(admin_envelopes.keys()) | set(fleet_stats.keys())
+    envelopes: dict[str, PeerEnvelope] = {}
+
+    for btype in all_types:
+        admin = admin_envelopes.get(btype)
+        fstat = fleet_stats.get(btype)
+
+        min_val = float(admin["min_value"]) if admin else float(fstat["peer_min"]) if fstat else 0.0
+        max_val = float(admin["max_value"]) if admin else float(fstat["peer_max"]) if fstat else 1.0
+        unit = admin["unit"] if admin else "points"
+
+        peer_min = float(fstat["peer_min"]) if fstat and fstat["peer_min"] is not None else None
+        peer_max = float(fstat["peer_max"]) if fstat and fstat["peer_max"] is not None else None
+        peer_count = int(fstat["peer_count"]) if fstat else 0
+
+        envelopes[btype] = PeerEnvelope(
+            gpu_model=gpu_model,
+            benchmark_type=btype,
+            min_value=min_val,
+            max_value=max_val,
+            unit=unit,
+            peer_min=peer_min,
+            peer_max=peer_max,
+            peer_count=peer_count,
+        )
+
+    return envelopes
+
+
+async def get_heartbeats_for_health(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+    window_days: int = 7,
+) -> list[dict]:
+    """
+    Fetch rolling 7-day heartbeat samples for health score computation.
+    """
+    from sqlalchemy import select
+    from libs.db_models.host_models import HostHeartbeat
+    since = datetime.now(UTC) - timedelta(days=window_days)
+    stmt = (
+        select(HostHeartbeat)
+        .where(
+            HostHeartbeat.host_id == host_id,
+            HostHeartbeat.recorded_at >= since,
+        )
+        .order_by(HostHeartbeat.recorded_at.desc())
+    )
+    result = await session.execute(stmt)
+    scalars = result.scalars().all()
+    return [
+        {
+            "temperature_c": r.temperature_c,
+            "power_draw_w": r.power_draw_w,
+            "recorded_at": r.recorded_at,
+        }
+        for r in scalars
+    ]
+
+
+async def save_host_score(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+    perf_res,
+    health_res,
+    reliability_score: float | None,
+    composite_score: float | None,
+    gpu_model: str | None = None,
+    benchmark_run_id: uuid.UUID | None = None,
+) -> HostScore:
+    """
+    Insert a new HostScore row.
+    """
+    row = HostScore(
+        host_id=host_id,
+        performance_score=Decimal(str(perf_res.performance_score)) if perf_res.performance_score is not None else None,
+        health_score=Decimal(str(health_res.health_score)) if health_res.health_score is not None else None,
+        reliability_score=Decimal(str(reliability_score)) if reliability_score is not None else None,
+        composite_score=Decimal(str(composite_score)) if composite_score is not None else None,
+        fp16_tflops_normalised=Decimal(str(perf_res.fp16_tflops_normalised)) if perf_res.fp16_tflops_normalised is not None else None,
+        fp32_tflops_normalised=Decimal(str(perf_res.fp32_tflops_normalised)) if perf_res.fp32_tflops_normalised is not None else None,
+        mem_bandwidth_normalised=Decimal(str(perf_res.mem_bandwidth_normalised)) if perf_res.mem_bandwidth_normalised is not None else None,
+        peer_group_size=perf_res.peer_group_size,
+        thermal_stability_score=Decimal(str(health_res.thermal_stability_score)) if health_res.thermal_stability_score is not None else None,
+        clock_stability_score=Decimal(str(health_res.clock_stability_score)) if health_res.clock_stability_score is not None else None,
+        power_stability_score=Decimal(str(health_res.power_stability_score)) if health_res.power_stability_score is not None else None,
+        gpu_model=gpu_model,
+        benchmark_run_id=benchmark_run_id,
+    )
+    session.add(row)
+    return row
+
+
+async def get_latest_host_score(
+    session: AsyncSession,
+    host_id: uuid.UUID,
+) -> dict | None:
+    """
+    Fetch the most recent HostScore row for a host.
+    """
+    from sqlalchemy import select
+    stmt = (
+        select(HostScore)
+        .where(HostScore.host_id == host_id)
+        .order_by(HostScore.computed_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    r = result.scalars().first()
+    if not r:
+        return None
+    return {
+        "id": r.id,
+        "host_id": r.host_id,
+        "performance_score": float(r.performance_score) if r.performance_score is not None else None,
+        "health_score": float(r.health_score) if r.health_score is not None else None,
+        "reliability_score": float(r.reliability_score) if r.reliability_score is not None else None,
+        "composite_score": float(r.composite_score) if r.composite_score is not None else None,
+        "fp16_tflops_normalised": float(r.fp16_tflops_normalised) if r.fp16_tflops_normalised is not None else None,
+        "fp32_tflops_normalised": float(r.fp32_tflops_normalised) if r.fp32_tflops_normalised is not None else None,
+        "mem_bandwidth_normalised": float(r.mem_bandwidth_normalised) if r.mem_bandwidth_normalised is not None else None,
+        "peer_group_size": r.peer_group_size,
+        "thermal_stability_score": float(r.thermal_stability_score) if r.thermal_stability_score is not None else None,
+        "clock_stability_score": float(r.clock_stability_score) if r.clock_stability_score is not None else None,
+        "power_stability_score": float(r.power_stability_score) if r.power_stability_score is not None else None,
+        "gpu_model": r.gpu_model,
+        "benchmark_run_id": r.benchmark_run_id,
+        "computed_at": r.computed_at,
+    }
+

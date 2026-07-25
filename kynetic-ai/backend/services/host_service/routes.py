@@ -39,6 +39,9 @@ from services.host_service.schemas import (
     HostRegistrationResponse,
     HostResponse,
     HardwareSpecResponse,
+    ApplyVerificationRequest,
+    AdminReviewVerificationRequest,
+    AdminRevokeVerificationRequest,
 )
 from services.host_service.tasks import process_heartbeat, trigger_rebenchmark
 from services.host_service.verification import verify_hardware_spec
@@ -476,4 +479,88 @@ async def get_host_dashboard(
         "active_rentals": 1,
         "uptime_pct": 99.5,
         "benchmark_verified": host.benchmark_verified,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Host Verification Endpoints (v8 Feature 3)
+# ---------------------------------------------------------------------------
+@host_router.post("/{host_id}/verification/apply", status_code=status.HTTP_201_CREATED)
+async def apply_verification_route(
+    host_id: uuid.UUID,
+    payload: ApplyVerificationRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.host_service.verification_service import apply_for_verification
+    docs = [{"document_type": d.document_type, "storage_url": d.storage_url} for d in payload.documents]
+    verif = await apply_for_verification(session, host_id, level=payload.level, documents=docs)
+    await session.commit()
+    return {
+        "verification_id": str(verif.id),
+        "host_id": str(host_id),
+        "level": verif.level,
+        "status": verif.status,
+        "submitted_at": verif.submitted_at.isoformat(),
+    }
+
+
+@host_router.get("/{host_id}/verification/status", status_code=status.HTTP_200_OK)
+async def get_verification_status_route(
+    host_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.host_service.verification_service import get_verification_status
+    return await get_verification_status(session, host_id)
+
+
+@host_router.post("/verifications/{verification_id}/approve", status_code=status.HTTP_200_OK)
+async def admin_approve_verification_route(
+    verification_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.host_service.verification_service import process_admin_review
+    admin_id = uuid.uuid4()
+    verif = await process_admin_review(session, verification_id, admin_id, decision="approved")
+    await session.commit()
+    return {
+        "status": "approved",
+        "verification_id": str(verification_id),
+        "level": verif.level,
+        "reviewed_by": str(admin_id),
+    }
+
+
+@host_router.post("/verifications/{verification_id}/reject", status_code=status.HTTP_200_OK)
+async def admin_reject_verification_route(
+    verification_id: uuid.UUID,
+    payload: AdminReviewVerificationRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.host_service.verification_service import process_admin_review
+    admin_id = uuid.uuid4()
+    verif = await process_admin_review(session, verification_id, admin_id, decision="rejected", rejection_reason=payload.rejection_reason)
+    await session.commit()
+    return {
+        "status": "rejected",
+        "verification_id": str(verification_id),
+        "rejection_reason": verif.rejection_reason,
+        "reviewed_by": str(admin_id),
+    }
+
+
+@host_router.post("/{host_id}/verification/revoke", status_code=status.HTTP_200_OK)
+async def admin_revoke_verification_route(
+    host_id: uuid.UUID,
+    payload: AdminRevokeVerificationRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    from services.host_service.verification_service import revoke_host_verification
+    admin_id = uuid.uuid4()
+    ok = await revoke_host_verification(session, host_id, admin_id, reason=payload.reason)
+    await session.commit()
+    return {
+        "revoked": ok,
+        "host_id": str(host_id),
+        "reason": payload.reason,
+        "reviewed_by": str(admin_id),
     }

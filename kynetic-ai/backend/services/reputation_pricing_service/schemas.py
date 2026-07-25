@@ -35,6 +35,22 @@ class ReputationScoreResponse(BaseModel):
         from_attributes = True
 
 
+# ── Reputation History & Admin Actions (v8 Feature 2) ──────────────────────────
+
+class ReputationEventResponse(BaseModel):
+    id: uuid.UUID
+    host_id: uuid.UUID
+    event_type: str
+    impact_delta: float
+    metadata: dict | None = None
+    created_at: str
+
+
+class AdminReputationActionRequest(BaseModel):
+    impact_delta: float = Field(-0.25, description="Impact delta for penalty or restore")
+    reason: str = Field(..., description="Audit reason for manual action")
+
+
 # ── Pricing Suggestion ─────────────────────────────────────────────────────────
 
 class PricingSuggestionResponse(BaseModel):
@@ -96,3 +112,73 @@ class HostDashboardResponse(BaseModel):
     health: HealthSnapshot
     idle_prediction: IdlePredictionResponse | None
     pricing_suggestion: PricingSuggestionResponse | None
+
+
+# ── v8 Feature 1: Benchmark & Host Scores Schemas ────────────────────────────
+
+class BenchmarkRunDetail(BaseModel):
+    """Single sub-test benchmark result."""
+    id: uuid.UUID
+    host_id: uuid.UUID
+    run_id: uuid.UUID
+    benchmark_type: str
+    value: float
+    unit: str
+    flag_status: str
+    flag_reason: str | None = None
+    gpu_model: str | None = None
+    cuda_version: str | None = None
+    driver_version: str | None = None
+    run_at: datetime
+
+
+class BenchmarkHistoryResponse(BaseModel):
+    """Response for GET /hosts/{id}/benchmarks/history."""
+    host_id: uuid.UUID
+    total_runs: int
+    runs: list[BenchmarkRunDetail]
+
+
+class PerformanceScoreBreakdown(BaseModel):
+    fp16_tflops_normalised: float | None = None
+    fp32_tflops_normalised: float | None = None
+    mem_bandwidth_normalised: float | None = None
+    peer_group_size: int = 0
+
+
+class HealthScoreBreakdown(BaseModel):
+    thermal_stability_score: float | None = None
+    clock_stability_score: float | None = None
+    power_stability_score: float | None = None
+
+
+class HostScoresResponse(BaseModel):
+    """Response for GET /hosts/{id}/scores."""
+    host_id: uuid.UUID
+    performance_score: float | None = None
+    health_score: float | None = None
+    reliability_score: float | None = None
+    composite_score: float | None = None
+    performance_breakdown: PerformanceScoreBreakdown = Field(default_factory=PerformanceScoreBreakdown)
+    health_breakdown: HealthScoreBreakdown = Field(default_factory=HealthScoreBreakdown)
+    gpu_model: str | None = None
+    benchmark_run_id: uuid.UUID | None = None
+    computed_at: datetime
+
+
+class RunBenchmarkRequest(BaseModel):
+    """Optional payload for POST /hosts/{id}/benchmarks/run."""
+    gpu_model: str | None = None
+    cuda_version: str | None = None
+    driver_version: str | None = None
+    sub_tests: list[dict] | None = None
+
+
+class RunBenchmarkResponse(BaseModel):
+    """Response for POST /hosts/{id}/benchmarks/run."""
+    host_id: uuid.UUID
+    run_id: uuid.UUID
+    sub_tests_run: int
+    flags: list[dict] = []
+    status: str
+

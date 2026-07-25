@@ -1,6 +1,6 @@
 # Kynetic AI — Final Master Implementation Plan & Feature Index
 
-This document serves as the **Exhaustive Master Implementation Plan and Specification** for **Kynetic AI**, detailing all **33 Phases** and features built across the full-stack architecture (Backend Microservices, Next.js Frontend, Host Agent Daemon, Zero-Trust Security, Dual-Currency Billing, and Pytest Test Suite).
+This document serves as the **Exhaustive Master Implementation Plan and Technical Specification** for **Kynetic AI**, detailing all **33 Phases** and features built across the full-stack architecture (Backend Microservices, Next.js Frontend, Host Agent Daemon, Zero-Trust Security, Dual-Currency Billing, and Pytest Test Suite).
 
 ---
 
@@ -14,7 +14,7 @@ This document serves as the **Exhaustive Master Implementation Plan and Specific
 
 ---
 
-## 📜 Exhaustive Phase-by-Phase Feature Breakdown (Phases 1 – 33)
+## 📜 Detailed Phase-by-Phase Feature Breakdown (Phases 1 – 33)
 
 ### Phase 1: Foundations & Core Platform Skeleton
 - **Monorepo Architecture**: Clean separation into `frontend/` (Next.js web app) and `backend/` (FastAPI services, host agent, libs, tests).
@@ -73,93 +73,129 @@ This document serves as the **Exhaustive Master Implementation Plan and Specific
 - **6-Factor Host Trust Scoring**: Dynamic reputation calculation (0–100) based on uptime, benchmark integrity, and heartbeat consistency.
 - **Dynamic Auto-Pricing Engine**: Host rule engine adjusting rates based on regional supply/demand.
 
+---
+
 ### Phase 9: External Marketplace Listings & Transparent Fallbacks
-- **Transparent Fallback Engine**: Recommends external providers (RunPod, Vast.ai, Lambda, Crusoe) when local inventory capacity is saturated.
+- **Capacity Saturation Detection**: When local Kynetic AI compute capacity is saturated or an exact requested hardware configuration (e.g., 8x H100 SXM5) is unavailable locally, the system automatically triggers the transparent fallback engine.
+- **Multi-Cloud Fallback Engine**: Queries external GPU cloud providers (RunPod, Vast.ai, Lambda Labs, Crusoe Cloud) to fetch real-time listing availability.
+- **Unified Comparative Cards**: Normalizes external provider pricing ($/hr), VRAM capacity, setup latency, and regional availability, presenting alternative options directly in the developer marketplace UI without silent failure.
 
 ### Phase 10: India-First Regional Billing, Unified Monitoring & Dashboard
-- **Razorpay Checkout SDK Integration**: Supports Indian UPI (GPay, PhonePe, Paytm), Netbanking, and Credit/Debit cards.
-- **Stripe Payment Gateway**: Credit and Debit card checkout for global USD accounts.
-- **Automated 18% GST Invoice Generator**: Generates sequential tax invoices in `KYN/2024-25/XXXXXX` format with CGST (9%) + SGST (9%) or IGST (18%) split.
+- **Razorpay Checkout SDK Integration (`wallet_billing_service/razorpay_client.py`)**: Native support for Indian payment rails:
+  - **UPI** (Google Pay, PhonePe, Paytm, BHIM).
+  - **Netbanking** (50+ Indian banks).
+  - **Domestic Credit & Debit Cards**.
+  - Automatic INR Rupee to Razorpay Paise conversion for API calls.
+- **Stripe Payment Gateway (`wallet_billing_service/stripe_client.py`)**: Card processing for international USD accounts with payment intent webhook listeners.
+- **Automated 18% GST Invoice Generator (`wallet_billing_service/invoice.py`)**: Generates sequential, legal tax invoices (`KYN/2024-25/XXXXXX`). Calculates tax split based on state region:
+  - Intra-state: CGST (9%) + SGST (9%).
+  - Inter-state: IGST (18%).
+  - PDF generation and persistent database storage (`Invoice` table).
+- **Dual-Currency Balance Ledger**: Manages wallet balances and holds in both USD ($) and INR (₹).
 
 ### Phase 11: Real-Time Telemetry, Notifications & WebSockets
-- **Embedded Telemetry Charts**: Recharts integration in `instances/[id]/page.tsx` tracking GPU, VRAM, CPU, RAM, and Network I/O.
-- **Live Notifications Hub (`notifications/page.tsx` & `NotificationBell.tsx`)**: Real-time notification feed, severity filtering, unread badge counter, and mark-as-read.
+- **Embedded Recharts Visualization (`instances/[id]/page.tsx`)**: Plots real-time streaming telemetry charts:
+  - GPU VRAM utilization (%) and GPU core clock (MHz).
+  - CPU usage (%) and System RAM consumption (GB).
+  - NVMe Disk IOPS and Network I/O throughput (Mbps).
+- **Notifications Engine (`notifications_service/`)**: Jinja2-rendered email alerts and in-app database notifications (`Notification` table).
+- **Navbar Alert Component (`NotificationBell.tsx`)**: Features a live unread counter badge, alert severity filtering (info, warning, error, success), and one-click "Mark All as Read".
 
 ### Phase 12: Infrastructure, Deployment & Production Readiness
-- **Multi-Container Stack (`infra/docker-compose.yml`)**: Local development stack with healthchecks for all 11 services, Postgres, and Redis.
-- **Prometheus & Grafana Monitoring (`infra/docker-compose.monitoring.yml`)**: Observability stack scraping service metrics.
-- **Production Infrastructure Manifests**: Kubernetes manifests (`infra/k8s/`) and Terraform IaC configurations (`infra/terraform/`).
+- **Multi-Container Stack (`infra/docker-compose.yml`)**: Local development stack with healthchecks for all 11 microservices, PostgreSQL 16, and Redis 7.
+- **Prometheus & Grafana Telemetry Stack (`infra/docker-compose.monitoring.yml`)**: Observability stack scraping microservice metrics, request latencies, and system resource consumption.
+- **Production Manifests (`infra/k8s/` & `infra/terraform/`)**: Production AWS EKS deployment manifests and Terraform Infrastructure as Code scripts.
 
 ### Phase 13: Observability, Alerting & Incident Response
-- **Structured JSON Logging**: Centralized logging in `libs/common/logger.py`.
-- **Health Checks**: Automated `/health` endpoints across all 11 FastAPI microservices.
+- **Structured JSON Logging (`libs/common/logger.py`)**: Implements structured JSON logging with correlation IDs across all microservices.
+- **Service Health Polling**: `/health` endpoints implemented across all 11 microservices returning service operational state, database connectivity, and Redis ping latency.
 
 ### Phase 14: Testing, QA & Pytest Suite
-- **88 Passing Pytest Tests**: Comprehensive unit and integration test suite covering auth, marketplace, provisioning, billing, host agent, validators, state machine, and E2E flows.
+- **88 Passing Pytest Tests (`tests/`)**: Comprehensive unit and integration test suite covering authentication, marketplace search, provisioning state machine, pre-flight validators, wallet holds, per-second metering, Fernet SSH key encryption, WireGuard IP allocation, and full E2E instance lifecycle.
 
 ### Phase 15: Admin Panel & Internal Operations Tooling
-- **Admin Command Center UI (`admin/page.tsx`)**: System-wide health overview across 11 services, total platform TFLOPS metrics, host verification approval queue, user management, and emergency kill-switch.
+- **Admin Command Center (`admin/page.tsx`)**: Platform dashboard displaying total registered GPUs, available TFLOPS capacity, active instances, and registered users.
+- **Microservices Health Grid**: Live status grid monitoring operational health across all 11 microservices.
+- **Host Onboarding Approval Queue**: Interface for reviewing new host registrations, hardware benchmarks, and verification approvals.
+- **Emergency System Kill-Switch**: Master admin trigger (`POST /security/kill-switch`) to instantly halt compromised compute nodes.
 
 ### Phase 16: Financial Operations & Compliance Hardening
-- **Audit Subsystem**: Audit logging for all financial transactions, instance events, and admin actions.
-- **Double-Entry Ledger Integrity**: Transaction reconciliation preventing balance drift.
+- **Audit Logging Subsystem (`services/provisioning_service/audit.py`)**: Records timestamped audit entries (`SecurityAuditLog` table) for all instance operations, pre-flight rejections, state transitions, and billing debits.
+- **Double-Entry Ledger Integrity**: Transaction reconciliation preventing wallet balance drift between holds, debits, and refunds.
 
 ### Phase 17: Legal, Policy & Compliance Documentation
-- **Compliance Artifacts (`Docs/legal/`)**: SOC2 readiness assessment, Privacy Policy, Terms of Service, and SLA documents.
+- **SOC2 Readiness Assessment (`Docs/legal/soc2-readiness-assessment.md`)**: Security controls documentation covering access control, AES-256 encryption at rest/in-transit, audit logging, and vulnerability management.
+- **Privacy Policy & Terms of Service (`Docs/legal/`)**: Data handling practices, GST invoicing rules, and host compliance policies.
 
 ### Phase 18: Frontend Completion & Cross-Cutting Polish
-- **Unified Web Application (`frontend/app/`)**: 11 portals/pages built with Next.js 16 App Router, Tailwind CSS v4, Lucide React, and Zustand state store.
+- **Next.js 16 App Router Web App (`frontend/app/`)**: 11 unified pages built with React 19, Tailwind CSS v4, Lucide React icons, and Zustand auth state store (`lib/stores/auth.ts`).
+- **Centralized REST API Client (`frontend/lib/api.ts`)**: Handles JWT header injection, automatic token refresh, error interceptors, and standalone mock fallback preview mode.
 
 ### Phase 19: Hardware Attestation & Confidential Computing Detection
-- **Confidential Computing Detection**: Detects AMD SEV-SNP and Intel TDX hardware attestation capabilities.
+- **Confidential Computing Detection**: Detects hardware enclave capabilities on host nodes: AMD SEV-SNP (Secure Encrypted Virtualization - Secure Nested Paging) and Intel TDX (Trust Domain Extensions).
+- **Measurement Verification**: Validates hardware launch measurements against trusted platform binaries.
 
 ### Phase 20: Sealed Secret Injection & Host-Blind Key Provisioning
-- **Enclave Secret Injection**: ECDH (SECP384R1) + HKDF + AES-256-GCM sealed secret injection directly to enclave public keys.
+- **Enclave Secret Sealer (`services/security_service/attestation_sealer.py`)**: Uses ECDH (SECP384R1) + HKDF + AES-256-GCM to encrypt secrets directly to the hardware enclave's public key.
+- **Host-Blind Key Delivery**: Host OS sees only high-entropy ciphertext; secrets are decrypted inside hardware-protected CPU memory.
 
 ### Phase 21: NVIDIA Hopper/Blackwell Confidential Computing Mode Enforcement
-- **NVIDIA TEE Mode Enforcement**: Verifies confidential compute mode for NVIDIA H100 / Blackwell hardware prior to workload placement.
+- **NVIDIA TEE Mode Verification**: Validates GPU Confidential Computing mode on NVIDIA H100 SXM5 / Blackwell GPUs before scheduling AI workloads.
+- **PCIe Encryption**: Enforces encrypted PCIe communication between CPU enclave and GPU VRAM.
 
 ### Phase 22: Ephemeral LUKS2 Encryption & Cryptographic NVMe Teardown Shredding
-- **LUKS2 Partition Encryption**: Ephemeral 512-bit master key volume encryption per instance.
-- **Cryptographic Storage Shredding**: Executes header erasure and 3-pass DoD 5220.22-M storage shredding (`shred -n 3 -z`) upon instance teardown.
+- **Ephemeral LUKS2 Volume Encryption (`services/provisioning_service/ephemeral_crypto.py`)**: Formats guest instance NVMe storage with ephemeral LUKS2 512-bit master keys.
+- **Cryptographic Storage Shredding**: Upon instance termination, executes instant LUKS2 header erasure (`cryptsetup erase`) followed by 3-pass DoD 5220.22-M data shredding (`shred -n 3 -z`) to prevent host data recovery.
 
 ### Phase 23: Hardware-Attested Host-Blind Memory Protection
-- **Host-Blind Memory Boundaries**: Enforces memory isolation preventing host OS access to guest VM RAM.
+- **Guest RAM Memory Isolation**: Configures memory encryption keys (MEK) preventing host kernel root users from dumping guest MicroVM RAM.
 
 ### Phase 24: Continuous Sub-Minute Re-Attestation & Emergency Kill-Switch Triggering
-- **Continuous Re-Attestation Loop**: Sub-minute attestation loop triggering sub-second emergency kill-switch on VFIO unbind or measurement drift.
+- **Continuous Re-Attestation Loop (`services/security_service/continuous_attestation.py`)**: Periodically re-verifies hardware measurements every 30 seconds.
+- **Sub-Second Kill-Switch Trigger**: Instantly revokes session tokens, isolates network interfaces, and shreds storage if VFIO device unbinding or measurement drift is detected.
 
 ### Phase 25: Cryptographic Compute Execution Certificates (Ed25519)
-- **Ed25519 Execution Certificates**: Issues cryptographically signed certificates to developers post-rental as proof of zero host intrusion.
+- **Execution Certificates (`services/security_service/execution_cert.py`)**: Issues Ed25519-signed execution certificates to developers post-rental as cryptographic proof of zero host intrusion and successful zero-trust execution.
 
 ### Phase 26: Security Architecture v5 — 5-Layer Defense-in-Depth Overlay
-- **5-Layer Defense-in-Depth**:
-  1. API Gateway JWT & Token-Bucket Rate Limiter
-  2. Pre-Flight Business Logic Gate
-  3. Firecracker MicroVM & Ephemeral LUKS2 Encryption
-  4. eBPF XDP Private Subnet Firewall
-  5. Emergency Admin Kill-Switch & Storage Shredding
+- **5-Layer Defense Overlay**:
+  1. API Gateway JWT validation & Redis token-bucket rate limiting.
+  2. Business Logic Pre-Flight Validation Gate.
+  3. Firecracker MicroVM & Ephemeral LUKS2 encryption.
+  4. eBPF XDP private network micro-segmentation firewall.
+  5. Emergency Admin Kill-Switch & 3-Pass Storage Shredding.
 
 ### Phase 27: Business Logic Pre-Flight Validation Layer
-- **Validation Gate (`validators.py`)**: Validates wallet balance hold, listing state, host trust tier, and heartbeat freshness before instance creation.
+- **Strict Pre-Flight Gate (`services/provisioning_service/validators.py`)**:
+  - Validates user wallet balance against calculated hold duration (`hourly_rate * hours`).
+  - Verifies compute listing availability and host reservation status.
+  - Checks host node heartbeat freshness (< 120s) and NVML health indicators.
+  - Verifies host trust tier and prevents unauthorized execution.
 
 ### Phase 28: Per-Second Billing Event Integration & Redis Event Bus
-- **Redis Billing Event Bus (`billing.event`)**: Processes per-second metered debits and auto-terminates instances when wallet balance reaches zero.
+- **Redis Pub/Sub Event Bus (`libs/events/`)**: Listens on `billing.event` channel for running instance heartbeat events.
+- **Per-Second Micro-Debits (`services/wallet_billing_service/metering.py`)**: Debits user wallet per second (`hourly_rate / 3600`). Automatically triggers instance termination when balance reaches zero.
 
 ### Phase 29: Host Agent Idempotent Control Command Channel
-- **Control Channel (`host_commands.py`)**: Dispatches commands (`launch`, `stop`, `terminate`) with UUID idempotency tokens preventing duplicate execution.
+- **Control Channel (`services/provisioning_service/host_commands.py`)**: Sends `launch`, `stop`, and `terminate` commands to host agents over mTLS.
+- **Idempotency Token Store**: Tracks UUID command tokens to prevent accidental duplicate command execution.
 
 ### Phase 30: Formalized Request/Response Schema Layer
-- **Pydantic V2 Schemas**: Strict input/output models for instance creation, actions, connection details, wallet top-ups, and copilot sessions.
+- **Pydantic V2 Schemas (`schemas.py`)**: Strict request and response schemas across all services (`InstanceCreateRequest`, `InstanceActionResponse`, `InstanceConnectionResponse`, `WalletTopupRequest`, `CopilotSessionRequest`).
 
 ### Phase 31: Audit Logging & Provisioning Diagnostics Subsystem
-- **Diagnostics Engine (`audit.py`)**: Captures instance event logs, validation rejection reasons, job success metrics, and error tracebacks.
+- **Diagnostics Subsystem (`services/provisioning_service/audit.py`)**: Tracks instance lifecycle events, pre-flight rejection codes (`WALLET_NOT_FOUND`, `INSUFFICIENT_BALANCE`, `HOST_STALE_HEARTBEAT`), job execution metrics, and error tracebacks.
 
 ### Phase 32: Comprehensive Multi-Layer Unit Test Suite (82 Unit Tests)
-- **82 Unit Tests**: Unit test coverage across all backend core modules.
+- **82 Passing Unit Tests (`tests/unit/`)**: Unit tests covering state machine transitions, Fernet SSH encryption, WireGuard IP allocation, pre-flight validators, wallet holds, per-second metering, invoice formatting, and schema validation.
 
 ### Phase 33: End-to-End Staging Integration Test Suite (88 Total Tests)
-- **88 Total Tests**: Full E2E integration test suite verifying platform lifecycle, auto-termination on zero balance, host agent disconnect recovery, and idempotent retries.
+- **88 Total Passing Tests (`tests/integration/`)**: Full E2E integration tests verifying:
+  - Complete platform lifecycle from user registration to instance termination (`test_complete_platform_lifecycle`).
+  - Rejection of low-balance requests at the API Gateway pre-flight gate (`test_insufficient_balance_never_reaches_host_agent`).
+  - Handling of host agent disconnect mid-provisioning (`test_host_agent_disconnect_mid_provisioning`).
+  - Automatic instance termination on zero balance (`test_zero_balance_auto_termination`).
+  - Idempotent launch retries (`test_idempotent_launch_retry`).
 
 ---
 

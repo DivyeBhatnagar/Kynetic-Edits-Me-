@@ -64,7 +64,8 @@ class AuditLogRepository:
         last_hash = res.scalar_one_or_none()
         prev_hash = last_hash or "GENESIS_HASH_CHAIN_ROOT_0000000000000000000000000000000000000000"
 
-        now_str = datetime.now(UTC).isoformat()
+        now_dt = datetime.now(UTC)
+        now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         payload = f"{prev_hash}|{now_str}|{actor_id}|{action}|{resource_type}|{resource_id}"
         entry_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -73,9 +74,10 @@ class AuditLogRepository:
             action=action,
             resource_type=resource_type,
             resource_id=str(resource_id) if resource_id else None,
-            extra_data=metadata,
+            extra_data=metadata or {},
             prev_hash=prev_hash,
             entry_hash=entry_hash,
+            created_at=now_dt,
         )
         self.session.add(log)
         await self.session.flush()  # Get the ID without committing

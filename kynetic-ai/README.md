@@ -65,12 +65,15 @@ Kynetic is built on a 5-plane decoupled architecture operating on a **100% Pytho
 - **Host Financial Onboarding & KYC**: App-layer encrypted PAN & bank credentials (`enc_v1_...`), onboarding state machine (`registered` ➔ `kyc_approved` ➔ `active`), and provider linked account creation.
 - **Host Payout & Refund Engine**: Idempotent transfer execution (`reference_id = payout.id`), line-item traceability, manual review escalation, and platform `refund_reserve` buffer handling.
 
-### 🔒 Zero-Trust Security & Host Agent Hardening
-- **Progressive Trust Tiers**: Spend & instance limit caps (`Tier 1`: $10/hr max; `Tier 2`: $50/hr max; `Tier 3`: unlimited).
-- **Device Fingerprinting**: Client signal SHA-256 fingerprinting on user authentication.
-- **Platform Emergency Kill Switch**: Instant administrative revocation of compromised instances/hosts/accounts (`POST /v1/security/kill-switch`).
-- **Cryptomining Abuse Detector**: Pre-execution OCI container image safety scanning and runtime process command-line inspection (`xmrig`, `ethminer`, `stratum+tcp://`).
-- **Cryptographic Storage Shredding**: 3-pass DoD 5220.22-M data wiping (`shred -n 3 -z`) with cryptographic `SecureDeletionReceipt`.
+### 🔒 Zero-Trust Security & Plan v2 Security Enhancements (Parts 1 – 27)
+- **Token Rotation & Audit Hash-Chaining**: Single-use `RefreshToken` family rotation with instant reuse revocation; SHA-256 hash-chained `AuditLog` records with external tip checkpointing & tamper verification (`security_service/audit_checkpoint.py`).
+- **LUKS2 Ephemeral Encryption & NVMe TRIM**: Per-instance LUKS2 formatted storage with 512-bit AES-XTS keys held in memory only, zeroized on `shred()`, plus NVMe-native `blkdiscard` TRIM sanitization (`host_agent/volume_manager.py`).
+- **TPM 2.0 Attestation & Host Trust Score**: TPM 2.0 signed quotes with single-use challenge nonces; Host Trust Score engine enforcing **Part 6.3 Hard Gate Rule** (attestation failure caps trust score at 29.0 `CRITICAL`, blocking scheduling; `trust_manager.py`).
+- **8-Dimension Zero Trust PDP**: Policy Decision Point evaluating 8 dimensions (`identity`, `auth`, `authz`, `attestation`, `policy`, `risk`, `resource`, `operation`; `libs/common/zero_trust.py`).
+- **Network Isolation & GPU Reset**: Per-instance `nftables` default-deny rulesets **blocking cloud metadata endpoint `169.254.169.254`** and cross-tenant traffic; `nvidia-smi --gpu-reset` VRAM zeroing verification on VM teardown (`network_isolation.py`, `firecracker.py`).
+- **Container Hardening & Cosign Gate**: `STANDARD`, `HARDENED`, and `VERIFIED` container profiles with read-only root FS and capability dropping; Cosign Sigstore image signature admission gate (`container_profiles.py`, `image_scanner.py`, `.github/workflows/security_scan.yml`).
+- **Runtime Risk Engine & Automated Containment**: 0–100 Composite Runtime Risk Engine with graduated response bands (`ALLOW`..`QUARANTINE`); risk-based Abuse Detector; Kynetic Secret Broker; automated host containment and workload quarantine (`runtime_monitor.py`, `abuse_detector.py`, `secret_broker.py`, `incident_response.py`).
+- **Verified Compute Scheduler Filter**: Hard pre-filter stage filtering candidate hosts prior to ranking based on attestation status, secure boot, measured boot, LUKS2 active storage, and risk band (`verified_scheduler.py`).
 
 ---
 
@@ -114,37 +117,40 @@ kynetic terminate inst-abc12345
 
 ## 🧪 Verification & Test Suite
 
-Run the full platform test suite across all Implementation Plan v6 (Phases A–L), v7 (Phases P1–P7), and v8 (Features 1–7) features:
+Run the full platform test suite across all Implementation Plan v6 (Phases A–L), v7 (Phases P1–P7), v8 (Features 1–7), and Plan v2 Security Enhancements (Parts 1–27):
 
 ```bash
-DATABASE_URL="sqlite+aiosqlite:///:memory:" .venv/bin/pytest cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
+PYTHONPATH=backend pytest backend/tests/security cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
 ```
 
 ### Test Coverage Summary
-- `test_cli_auth.py`: **4 passed** (Device authorization flow, credentials storage, token rotation)
-- `test_v6_phase_a_auth.py`: **1 passed** (Auth Gateway device verify API)
-- `test_v6_phase_b_host_marketplace.py`: **4 passed** (Host hardware detection, FLOPS benchmarking, mTLS certs, marketplace search)
-- `test_v6_phase_c_runtime.py`: **3 passed** (Instance state machine, pre-flight validators, account billing readiness check)
-- `test_v6_phase_d_agent_completion.py`: **4 passed** (PTY stream allocation, 10s NVML telemetry, 3-pass DoD shredding)
-- `test_v6_phase_e_f_gateway_cli.py`: **2 passed** (WebSocket tunnel tickets, multiplexed PTY session)
-- `test_v6_phase_g_h_dx_scheduler.py`: **5 passed** (Chunked file transfer checksums, VS Code Remote SSH config, 6-factor scheduler ranking, host reputation & dashboard)
-- `test_v6_phase_i_j_k_l_launch_readiness.py`: **5 passed** (Per-second metering & ledger recording, trust tier caps, emergency kill switch, cryptomining abuse detection, Prometheus metrics export)
-- `test_v7_phase_1_2_payments_ledger.py`: **3 passed** (Razorpay HMAC signature verification, database-level webhook replay protection, double-entry financial ledger & daily reconciliation validator)
-- `test_v7_phase_3_4_kyc_commission.py`: **2 passed** (App-layer encrypted KYC submission, provider linked account creation on admin approval, priority commission resolution & host earnings split)
-- `test_v7_phase_5_6_7_payouts_refunds_dashboards.py`: **4 passed** (Payout batching & transfer idempotency, manual_review failure escalation, refund platform reserve buffer, Cashfree adapter, host/admin financial dashboards)
-- `test_v8_feature_1_benchmark_health_score.py`: **9 passed** (Peer-group normalized FP16/FP32 FLOPS, VRAM bandwidth, min/max envelope fraud detection, rolling 7-day health score, HostScore history)
-- `test_v8_feature_2_3_reputation_verification.py`: **5 passed** (Append-only reputation event log, time-decay engine, anti-gaming cancellation penalties, automatic Silver/Gold eligibility, admin Enterprise review & revocation cascades)
-- `test_v8_feature_4_5_6_search_launch.py`: **5 passed** (GPU Benchmark Database analytics aggregation, side-by-side model comparison, search listing sync, multi-attribute smart search query engine, API routes, and `kynetic launch` CLI flags)
+- **Security Enhancements Suite (`backend/tests/security/`)**: **25 passed** (Token rotation, audit hash chaining, LUKS2 encryption, TPM 2.0 attestation, Trust Score hard gate, Zero Trust PDP, `nftables` isolation, GPU reset, container profiles, Cosign signature gate, Runtime Risk Engine, Abuse Detector, Secret Broker, Incident Response, Verified Scheduler, Audit tip checkpointing)
+- **CLI & Core Auth Suite**: **5 passed** (Device authorization flow, credentials storage, token rotation, Auth Gateway API)
+- **Host & Marketplace Suite**: **4 passed** (Host hardware detection, FLOPS benchmarking, mTLS certs, marketplace search)
+- **Runtime Lifecycle Suite**: **3 passed** (Instance state machine, pre-flight validators, account billing readiness check)
+- **Agent Completion Suite**: **4 passed** (PTY stream allocation, NVML telemetry, 3-pass DoD shredding)
+- **Gateway & Tunnel Suite**: **2 passed** (WebSocket tunnel tickets, multiplexed PTY session)
+- **Developer DX & Scheduler Suite**: **5 passed** (Chunked file transfer checksums, VS Code Remote SSH config, 6-factor scheduler ranking, host reputation & dashboard)
+- **Launch Readiness Suite**: **5 passed** (Per-second metering & ledger recording, trust tier caps, emergency kill switch, cryptomining abuse detection, Prometheus metrics export)
+- **Payments & Ledger Suite**: **3 passed** (Razorpay HMAC signature verification, database-level webhook replay protection, double-entry financial ledger & daily reconciliation validator)
+- **KYC & Commission Suite**: **2 passed** (App-layer encrypted KYC submission, provider linked account creation on admin approval, priority commission resolution & host earnings split)
+- **Payouts & Refunds Suite**: **4 passed** (Payout batching & transfer idempotency, manual review failure escalation, refund platform reserve buffer, Cashfree adapter, host/admin financial dashboards)
+- **Benchmark & Health Suite**: **9 passed** (Peer-group normalized FP16/FP32 FLOPS, VRAM bandwidth, min/max envelope fraud detection, rolling 7-day health score, HostScore history)
+- **Reputation & Verification Suite**: **5 passed** (Append-only reputation event log, time-decay engine, anti-gaming cancellation penalties, automatic Silver/Gold eligibility, admin Enterprise review & revocation cascades)
+- **Smart Search & Launch Suite**: **5 passed** (GPU Benchmark Database analytics aggregation, side-by-side model comparison, search listing sync, multi-attribute smart search query engine, API routes, and `kynetic launch` CLI flags)
 
-**Grand Total: 56 passed out of 56 tests (100% Success Rate)**.
+**Grand Total: 81 passed out of 81 tests (100% Success Rate)**.
 
 ---
 
 ## 📄 Documentation Index
+- [17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md](Docs/Plans/17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md) — 27-Part End-to-End Security Architecture Specification & Roadmap
 - [16_Implementation_Plan_v8.md](Docs/Plans/16_Implementation_Plan_v8.md) — GPU Benchmarks, Health Scores, Reputation, Verified Hosts, Smart Search & One Command Launch v8
 - [15_Implementation_Plan_v7.md](Docs/Plans/15_Implementation_Plan_v7.md) — Marketplace Payment, Billing, Commission & Payout Architecture v7
 - [14_Implementation_Plan_v6.md](Docs/Plans/14_Implementation_Plan_v6.md) — Production Engineering Specification & Master Roadmap v6
-- [12_Implemented_Things.md](Docs/Plans/12_Implemented_Things.md) — Master Architecture Specification of Implemented Things (Phases 1–33, A–L, P1–P7, v8 Features 1–7)
+- [Implemented_Things.md](Docs/Implemented_Things.md) — Exhaustive Master Specification of Implemented Things (Phases 1–33, A–L, P1–P7, v8 Features 1–7, & Plan v2 Security Enhancements Parts 1–27)
+- [Things_Left_To_Do_Live_Production.md](Docs/Things_Left_To_Do_Live_Production.md) — Itemized Production Activation Playbook & Security Hardening Guide
 - [backend/README.md](backend/README.md) — Backend Microservices Architecture & Telemetry Specification
 - [cli/README.md](cli/README.md) — 100% Python CLI Installation & Usage Guide
 - [07_Security_Architecture.md](Docs/Plans/07_Security_Architecture.md) — Zero-Trust Security Specification
+

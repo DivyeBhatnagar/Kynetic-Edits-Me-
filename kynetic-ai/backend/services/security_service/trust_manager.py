@@ -77,3 +77,90 @@ async def record_device_fingerprint(
     await session.flush()
     log.info("security.device_fingerprint_recorded", user_id=str(user_id), ip=ip_address)
     return fp
+
+
+def calculate_host_trust_score(
+    attestation_status: str,
+    secure_boot_compliant: bool = True,
+    measured_boot_compliant: bool = True,
+    kernel_version_fresh: bool = True,
+    agent_version_fresh: bool = True,
+    container_runtime_fresh: bool = True,
+    gpu_driver_fresh: bool = True,
+    network_anomalies_penalty: float = 0.0,
+    prior_incidents_penalty: float = 0.0,
+    abuse_violations_penalty: float = 0.0,
+) -> tuple[float, str]:
+    """
+    Computes Part 6 Composite Host Trust Score (0-100) and maps to Risk Band.
+
+    Weights (Part 6.1):
+      Attestation status:               25%
+      Secure Boot + measured boot:      15%
+      Kernel version freshness:         10%
+      Host Agent version freshness:     10%
+      Container runtime version:         5%
+      GPU driver version:                5%
+      Network behavior anomalies:       10%
+      Prior security incidents:         10%
+      Workload abuse violations:        10%
+
+    Hard Gate Rule (Part 6.3):
+      Attestation failure or expiry caps composite score at 29.0 (CRITICAL) regardless of other inputs.
+    """
+    # 1. Attestation weight (25%)
+    attest_pts = 25.0 if attestation_status == "current" else 0.0
+
+    # 2. Secure Boot + Measured Boot (15%)
+    boot_pts = 0.0
+    if secure_boot_compliant:
+        boot_pts += 7.5
+    if measured_boot_compliant:
+        boot_pts += 7.5
+
+    # 3. Software Component Freshness (30% total)
+    kernel_pts = 10.0 if kernel_version_fresh else 3.0
+    agent_pts = 10.0 if agent_version_fresh else 3.0
+    runtime_pts = 5.0 if container_runtime_fresh else 1.0
+    gpu_pts = 5.0 if gpu_driver_fresh else 1.0
+
+    # 4. Behavioral & Historical Anomaly Deductions (30% total baseline)
+    network_pts = max(0.0, 10.0 - network_anomalies_penalty)
+    incident_pts = max(0.0, 10.0 - prior_incidents_penalty)
+    abuse_pts = max(0.0, 10.0 - abuse_violations_penalty)
+
+    raw_score = (
+        attest_pts
+        + boot_pts
+        + kernel_pts
+        + agent_pts
+        + runtime_pts
+        + gpu_pts
+        + network_pts
+        + incident_pts
+        + abuse_pts
+    )
+
+    # Enforce Hard Gate Rule (Part 6.3)
+    if attestation_status in ("failed", "expired", "unattested"):
+        final_score = min(29.0, raw_score)
+    else:
+        final_score = min(100.0, max(0.0, raw_score))
+
+    # Risk Band Mapping (Part 6.2)
+    if final_score >= 80.0:
+        risk_band = "LOW_RISK"
+    elif final_score >= 60.0:
+        risk_band = "MEDIUM_RISK"
+    elif final_score >= 30.0:
+        risk_band = "HIGH_RISK"
+    else:
+        risk_band = "CRITICAL"
+
+    log.debug(
+        "trust_manager.score_calculated",
+        attestation_status=attestation_status,
+        score=final_score,
+        risk_band=risk_band,
+    )
+    return round(final_score, 2), risk_band

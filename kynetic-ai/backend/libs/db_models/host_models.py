@@ -137,6 +137,20 @@ class Host(Base):
         String(32), nullable=False, default="building_trust", index=True,
         comment="new, building_trust, established, flagged, suspended, restored, permanently_banned"
     )
+    # Part 5 & Part 6: TPM 2.0 Attestation & Host Trust Score
+    aik_public_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attestation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unattested", index=True,
+        comment="unattested, current, expired, failed"
+    )
+    last_attested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    secure_boot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    measured_boot_compliant: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    trust_score: Mapped[float] = mapped_column(Float, default=100.0, nullable=False, index=True)
+    risk_band: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="LOW_RISK", index=True,
+        comment="LOW_RISK (80-100), MEDIUM_RISK (60-79), HIGH_RISK (30-59), CRITICAL (0-29)"
+    )
     spec_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     benchmark_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     flagged_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -148,6 +162,11 @@ class Host(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    # Relationships
+    attestation_logs: Mapped[list["HostAttestationLog"]] = relationship(
+        "HostAttestationLog", back_populates="host", cascade="all, delete-orphan"
     )
 
     # Relationships
@@ -547,3 +566,32 @@ class VerificationDocument(Base):
     verification: Mapped["HostVerification"] = relationship(
         "HostVerification", back_populates="documents"
     )
+
+
+class HostAttestationLog(Base):
+    """
+    Part 5 — TPM 2.0 Host Attestation challenge-response audit trail.
+    Records every attestation cycle (nonce generation -> quote verification -> pass/fail).
+    """
+    __tablename__ = "host_attestation_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nonce: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", index=True,
+        comment="pending, passed, failed, expired"
+    )
+    pcr_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    quote_signature: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    host: Mapped["Host"] = relationship("Host", back_populates="attestation_logs")

@@ -142,3 +142,57 @@ def analyze_telemetry(payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     return report
+
+
+def calculate_runtime_risk_score(
+    customer_risk: float = 0.0,
+    host_risk: float = 0.0,
+    falco_alert_count: int = 0,
+    image_cve_critical_count: int = 0,
+    network_violations_count: int = 0,
+    mining_suspected: bool = False,
+) -> tuple[float, str, str]:
+    """
+    Computes Part 16 Composite Runtime Risk Score (0-100, where higher = higher risk).
+
+    Bands & Automated Response Actions (Part 16.2):
+      0–20:  ALLOW       — Normal execution
+      20–40: MONITOR     — Increased telemetry logging
+      40–60: RESTRICT    — Resource ceilings / egress restricted
+      60–80: SUSPEND     — Instance paused, developer notified
+      80–100: QUARANTINE — Network-isolated immediately, state frozen for security review
+    """
+    raw_risk = (
+        (customer_risk * 0.15)
+        + (host_risk * 0.15)
+        + (min(10, falco_alert_count) * 4.0)
+        + (min(5, image_cve_critical_count) * 6.0)
+        + (min(10, network_violations_count) * 3.0)
+        + (40.0 if mining_suspected else 0.0)
+    )
+
+    final_score = round(min(100.0, max(0.0, raw_risk)), 2)
+
+    if final_score >= 80.0:
+        band = "Severe"
+        action = "QUARANTINE"
+    elif final_score >= 60.0:
+        band = "High"
+        action = "SUSPEND"
+    elif final_score >= 40.0:
+        band = "Concerning"
+        action = "RESTRICT"
+    elif final_score >= 20.0:
+        band = "Elevated"
+        action = "MONITOR"
+    else:
+        band = "Normal"
+        action = "ALLOW"
+
+    log.info(
+        "runtime_monitor.risk_score_calculated",
+        score=final_score,
+        band=band,
+        action=action,
+    )
+    return final_score, band, action

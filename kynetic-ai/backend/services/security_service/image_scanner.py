@@ -156,3 +156,32 @@ def scan_image(image: str) -> ImageScanResult:
         high=high_count,
     )
     return result
+
+
+def verify_image_signature(image_url: str) -> tuple[bool, str]:
+    """
+    Part 13 — Cosign Sigstore Image Signature Verification.
+
+    Admission Policy:
+      - Unsigned image: REJECT (passed=False)
+      - Signed image: ALLOW (passed=True)
+    """
+    if settings.scanner_mock:
+        log.info("image_scanner.cosign_mock_signature_valid", image=image_url)
+        return True, "Valid Cosign signature verified (mock mode)."
+
+    try:
+        res = subprocess.run(
+            ["cosign", "verify", "--key", "/etc/kynetic/cosign.pub", image_url],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if res.returncode == 0:
+            return True, "Valid Cosign signature verified."
+        else:
+            log.warning("image_scanner.unsigned_image_rejected", image=image_url, stderr=res.stderr)
+            return False, f"Image admission rejected: Unsigned or invalid signature ({res.stderr.strip()})"
+    except Exception as exc:
+        log.error("image_scanner.cosign_verification_error", image=image_url, error=str(exc))
+        return False, f"Image admission error: Cosign verification failed ({str(exc)})"

@@ -74,6 +74,9 @@ class RefreshToken(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    family_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, default=uuid.uuid4, index=True
+    )
     token_hash: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
@@ -82,7 +85,9 @@ class RefreshToken(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    replaced_by_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
@@ -218,6 +223,8 @@ class AuditLog(Base):
     resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     extra_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    entry_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )

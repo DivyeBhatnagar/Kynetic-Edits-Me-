@@ -228,37 +228,26 @@ async def refresh_token(
     refresh_repo = RefreshTokenRepository(session, audit_repo)
     user_repo = UserRepository(session, audit_repo)
 
-    token_hash = hash_refresh_token(body.refresh_token)
-    stored_token = await refresh_repo.get_by_hash(token_hash)
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("User-Agent")
 
-    if not stored_token:
+    # Rotate: atomic single-use rotation with family reuse detection
+    rotated = await refresh_repo.rotate(body.refresh_token, user_agent=ua, ip_address=ip)
+    if not rotated:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token.",
+            detail="Invalid, expired, or reused refresh token.",
         )
 
-    user = await user_repo.get_by_id(stored_token.user_id)
+    new_raw_refresh, new_token = rotated
+    user = await user_repo.get_by_id(new_token.user_id)
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is inactive.",
         )
 
-    # Rotate: revoke old, issue new
-    await refresh_repo.revoke(stored_token, actor_id=user.id)
     new_access = create_access_token(user.id, user.role.value)
-    new_raw_refresh, _ = generate_refresh_token()
-    ip = request.client.host if request.client else None
-    ua = request.headers.get("User-Agent")
-    await refresh_repo.create(user.id, new_raw_refresh, user_agent=ua, ip_address=ip)
-
-    await audit_repo.create(
-        action="auth.token_refreshed",
-        actor_id=user.id,
-        resource_type="user",
-        resource_id=str(user.id),
-        metadata={"ip": ip},
-    )
 
     return TokenResponse(
         access_token=new_access,

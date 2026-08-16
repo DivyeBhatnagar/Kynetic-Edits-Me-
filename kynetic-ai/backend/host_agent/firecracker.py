@@ -168,14 +168,63 @@ class FirecrackerVM:
         self._api_call("PUT", "/actions", {"action_type": "SendCtrlAltDel"})
         return {"vm_id": self.vm_id, "status": "stopped"}
 
-    def terminate(self) -> dict[str, Any]:
+    def reset_gpu_isolation(self, gpu_index: int = 0) -> dict[str, Any]:
         """
-        Destroys the VM by killing the Firecracker process.
-        The UDS socket and process files are cleaned up.
+        Part 10.2 — Mandatory GPU Reset & VRAM Clearing Verification between rentals.
+        Ensures no residual compute context or VRAM state leaks across tenant rentals.
+        """
+        log.info(
+            "firecracker.reset_gpu_isolation",
+            instance_id=str(self.instance_id),
+            gpu_index=gpu_index,
+            mock=FIRECRACKER_MOCK,
+        )
+        if FIRECRACKER_MOCK:
+            return {
+                "gpu_index": gpu_index,
+                "reset_status": "success",
+                "vram_cleared": True,
+                "mock": True,
+            }
+
+        # Issue nvidia-smi GPU reset command
+        cmd = ["nvidia-smi", "--gpu-reset", "-i", str(gpu_index)]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        reset_success = proc.returncode == 0
+
+        # Query post-reset VRAM processes to verify zero residual
+        query_cmd = ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory", "--format=csv,noheader", "-i", str(gpu_index)]
+        query_proc = subprocess.run(query_cmd, capture_output=True, text=True)
+        vram_cleared = len(query_proc.stdout.strip()) == 0
+
+        if not (reset_success and vram_cleared):
+            log.error("firecracker.gpu_reset_failed", gpu_index=gpu_index, output=proc.stderr)
+
+        return {
+            "gpu_index": gpu_index,
+            "reset_status": "success" if reset_success else "failed",
+            "vram_cleared": vram_cleared,
+            "mock": False,
+        }
+
+    def terminate(self, gpu_index: int | None = 0) -> dict[str, Any]:
+        """
+        Destroys the VM by killing the Firecracker process and resetting GPU state.
+        The UDS socket, process files, and GPU VRAM residue are cleaned up.
         """
         log.info("firecracker.terminate", instance_id=str(self.instance_id), mock=FIRECRACKER_MOCK)
+
+        gpu_reset_res = None
+        if gpu_index is not None:
+            gpu_reset_res = self.reset_gpu_isolation(gpu_index)
+
         if FIRECRACKER_MOCK:
-            return {"vm_id": self.vm_id, "status": "terminated"}
+            return {
+                "vm_id": self.vm_id,
+                "status": "terminated",
+                "gpu_reset": gpu_reset_res,
+                "mock": True,
+            }
 
         if self._process and self._process.poll() is None:
             self._process.terminate()
@@ -185,4 +234,9 @@ class FirecrackerVM:
         if os.path.exists(self.socket_path):
             os.unlink(self.socket_path)
 
-        return {"vm_id": self.vm_id, "status": "terminated"}
+        return {
+            "vm_id": self.vm_id,
+            "status": "terminated",
+            "gpu_reset": gpu_reset_res,
+            "mock": False,
+        }

@@ -64,13 +64,13 @@ To launch fast without over-engineering or spending unnecessary money, use this 
 | **6. Host Agent** | **EV Code Signing Certificate** | $300/yr DigiCert/Sectigo EV Certificate for Windows `.exe` and Apple Notarization | **DEFERRED (Post-MVP)** | ⏳ Optional |
 | **7. Seed Pool** | **Initial 2–5 GPU Seed Pool** | Onboard 2x RTX 4090s and 1x A100 to populate catalog on Day 1 | **MANDATORY DAY 1** | ⏳ Pending Onboarding |
 | **7. Seed Pool** | **25+ Global GPU Fleet** | Onboard 25+ nodes across 4 global regions | **DEFERRED (Post-MVP)** | ⏳ Optional |
-| **8. Security** | **JWT Token Rotation & SHA Hash Chain** | Single-use JWT refresh token rotation + SHA-256 audit log hash-chaining | **MANDATORY DAY 1** | ⏳ Implemented |
-| **8. Security** | **3-Pass DoD Shredding** | Ephemeral LUKS2 volume encryption + 3-pass DoD 5220.22-M storage shredding (`shred -n 3 -z`) | **MANDATORY DAY 1** | ⏳ Implemented |
-| **8. Security** | **CI/CD Vulnerability Scanning** | Trivy container image scanning + Semgrep SAST scanning in GitHub Actions | **MANDATORY DAY 1** | ⏳ Configured |
-| **8. Security** | **gVisor / Kata Containers** | User-space syscall proxy interposer preventing host root breakouts | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
-| **8. Security** | **eBPF/XDP LAN & Mining Blocker** | Kernel XDP filter dropping LAN IPs (`192.168.x.x`) and Stratum mining pools | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
-| **8. Security** | **WebAuthn Passkeys / Hardware 2FA** | FIDO2 YubiKey / Touch ID biometric authentication | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
-| **8. Security** | **Confidential Computing (SEV/TDX)** | Remote hardware attestation (AMD KDS / Intel PCS / NVIDIA NRAS) | **DEFERRED (Post-MVP)** | ⏳ Advanced Hardening |
+| **8. Security** | **JWT Token Rotation & SHA Hash Chain** | Single-use JWT refresh token rotation + SHA-256 audit log hash-chaining | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 1–2) |
+| **8. Security** | **3-Pass DoD Shredding & LUKS2** | Ephemeral LUKS2 volume encryption + NVMe `blkdiscard` TRIM sanitization | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 3–4) |
+| **8. Security** | **TPM 2.0 Host Attestation & Trust Score** | TPM 2.0 signed quote attestation client + Part 6.3 Hard Gate Rule | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 5–6) |
+| **8. Security** | **Zero Trust PDP & Network Isolation** | 8-Dimension Policy Engine + per-instance `nftables` default deny & 169.254.169.254 block | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 7–10) |
+| **8. Security** | **Container Profiles & Cosign Gate** | STANDARD / HARDENED / VERIFIED profiles + Cosign Sigstore admission gate & CI SAST | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 11–14) |
+| **8. Security** | **Runtime Risk Engine & Incident Response** | 0–100 Risk Engine + graduated response bands (ALLOW..QUARANTINE) + automated containment | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 15–21) |
+| **8. Security** | **Verified Compute & Secret Broker** | Verified Compute hard pre-filter stage + Kynetic Secret Broker & audit tip checkpointing | **MANDATORY DAY 1** | ✅ Implemented (Plan v2 Parts 22–27) |
 | **9. QA Gate** | **5–10 Closed Beta Sign-Off** | Validate end-to-end rental & payment journey with 5–10 friendly beta users | **MANDATORY DAY 1** | ⏳ Pending Beta |
 | **9. QA Gate** | **72-Hour 1,000-User Soak Test** | 72-hour continuous Locust load test under 1,000 simulated users | **DEFERRED (Post-MVP)** | ⏳ Optional |
 

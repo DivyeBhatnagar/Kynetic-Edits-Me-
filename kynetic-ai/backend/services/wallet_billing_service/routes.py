@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.common.auth import require_auth
 from libs.common.audit import audit_log
-from libs.common.database import get_db_session
+from libs.db_models.database import get_db_session
 from libs.db_models.marketplace_models import Currency, TransactionType
 from libs.db_models.security_models import SecurityEventSeverity, SecurityEventType
 from services.wallet_billing_service import stripe_client as sc

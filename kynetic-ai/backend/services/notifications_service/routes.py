@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.common.auth import require_auth
-from libs.common.database import get_db_session
+from libs.db_models.database import get_db_session
 from services.notifications_service.repository import (
     NotificationPreferenceRepository,
     NotificationRepository,

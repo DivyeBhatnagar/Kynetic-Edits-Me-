@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from libs.common.database import get_async_session
+from libs.db_models.database import get_async_session
 from libs.db_models.security_models import (
     KillSwitchTargetType,
     SecurityEventSeverity,

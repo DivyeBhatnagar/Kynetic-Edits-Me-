@@ -21,6 +21,7 @@ class APIGatewaySettings(BaseServiceSettings):
     security_service_url: str = "http://security_service:8006"         # Phase 5
     ai_router_copilot_service_url: str = "http://ai_router_copilot_service:8007"
     reputation_pricing_service_url: str = "http://reputation_pricing_service:8008"
+    notifications_service_url: str = "http://notifications_service:8010"
     hybrid_broker_service_url: str = "http://hybrid_broker_service:8009"
     monitoring_service_url: str = "http://monitoring_service:8010"
 

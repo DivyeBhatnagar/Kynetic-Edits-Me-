@@ -132,7 +132,7 @@ async def proxy_auth_login(request: Request):
     summary="Proxy: POST /v1/auth/refresh → auth_service",
 )
 async def proxy_auth_refresh(request: Request):
-    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/refresh")
+    return await _proxy_request(request, f"{settings.auth_service_url}/auth/refresh")
 
 
 @gateway_router.api_route(
@@ -148,7 +148,7 @@ async def proxy_auth_refresh(request: Request):
     summary="Proxy: POST /v1/auth/device/code → auth_service",
 )
 async def proxy_auth_device_code(request: Request):
-    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/code")
+    return await _proxy_request(request, f"{settings.auth_service_url}/auth/device/code")
 
 
 @gateway_router.api_route(
@@ -164,7 +164,7 @@ async def proxy_auth_device_code(request: Request):
     summary="Proxy: POST /v1/auth/device/token → auth_service",
 )
 async def proxy_auth_device_token(request: Request):
-    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/token")
+    return await _proxy_request(request, f"{settings.auth_service_url}/auth/device/token")
 
 
 @gateway_router.api_route(
@@ -180,7 +180,7 @@ async def proxy_auth_device_token(request: Request):
     summary="Proxy: GET /v1/cli/version → auth_service",
 )
 async def proxy_cli_version(request: Request):
-    return await _proxy_request(request, f"{settings.auth_service_url}/v1/cli/version")
+    return await _proxy_request(request, f"{settings.auth_service_url}/auth/cli/version")
 
 
 
@@ -220,7 +220,7 @@ async def proxy_auth_me(request: Request, _: dict = Depends(require_auth)):
     summary="Proxy: POST /v1/auth/device/verify → auth_service (protected)",
 )
 async def proxy_auth_device_verify(request: Request, _: dict = Depends(require_auth)):
-    return await _proxy_request(request, f"{settings.auth_service_url}/v1/auth/device/verify")
+    return await _proxy_request(request, f"{settings.auth_service_url}/auth/device/verify")
 
 
 
@@ -409,13 +409,19 @@ async def proxy_listings_search(request: Request):
 
 
 @gateway_router.api_route(
-    "/listings",
+    "/search/listings",
     methods=["GET"],
     tags=["Marketplace Proxy"],
-    summary="Proxy: GET /listings → marketplace_service (public browse)",
+    summary="Proxy: GET /search/listings → marketplace_service (smart search)",
 )
-async def proxy_listings_browse(request: Request):
-    return await _proxy_request(request, f"{settings.marketplace_service_url}/listings")
+@gateway_router.api_route(
+    "/v1/search/listings",
+    methods=["GET"],
+    tags=["Marketplace Proxy"],
+    summary="Proxy: GET /v1/search/listings → marketplace_service (smart search)",
+)
+async def proxy_listings_smart_search(request: Request):
+    return await _proxy_request(request, f"{settings.marketplace_service_url}/search/listings")
 
 
 @gateway_router.api_route(
@@ -507,6 +513,56 @@ async def proxy_stripe_webhook(request: Request):
     # Stripe-Signature header must be forwarded — handled by _proxy_request header passthrough
     return await _proxy_request(
         request, f"{settings.wallet_billing_service_url}/billing/webhooks/stripe"
+    )
+
+
+@gateway_router.api_route(
+    "/wallet/topup/upi",
+    methods=["POST"],
+    tags=["Wallet Proxy"],
+    summary="Proxy: POST /wallet/topup/upi → wallet_billing_service (protected)",
+)
+async def proxy_wallet_topup_upi(request: Request, _: dict = Depends(require_auth)):
+    return await _proxy_request(
+        request, f"{settings.wallet_billing_service_url}/wallet/topup/upi"
+    )
+
+
+@gateway_router.api_route(
+    "/billing/webhooks/razorpay",
+    methods=["POST"],
+    tags=["Billing Proxy"],
+    summary="Proxy: POST /billing/webhooks/razorpay → wallet_billing_service (Razorpay confirmation)",
+)
+async def proxy_razorpay_webhook(request: Request):
+    return await _proxy_request(
+        request, f"{settings.wallet_billing_service_url}/billing/webhooks/razorpay"
+    )
+
+
+@gateway_router.api_route(
+    "/billing/invoices",
+    methods=["GET"],
+    tags=["Billing Proxy"],
+    summary="Proxy: GET /billing/invoices → wallet_billing_service (protected)",
+)
+async def proxy_billing_invoices_list(request: Request, _: dict = Depends(require_auth)):
+    return await _proxy_request(
+        request, f"{settings.wallet_billing_service_url}/billing/invoices"
+    )
+
+
+@gateway_router.api_route(
+    "/billing/invoices/{invoice_id}",
+    methods=["GET"],
+    tags=["Billing Proxy"],
+    summary="Proxy: GET /billing/invoices/{id} → wallet_billing_service (protected)",
+)
+async def proxy_billing_invoice_get(
+    invoice_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    return await _proxy_request(
+        request, f"{settings.wallet_billing_service_url}/billing/invoices/{invoice_id}"
     )
 
 
@@ -956,4 +1012,111 @@ async def proxy_pricing_suggest(
     return await _proxy_request(
         request,
         f"{settings.reputation_pricing_service_url}/v1/pricing/suggest",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Notifications & Support routes (Phase 10) — notifications_service
+# ---------------------------------------------------------------------------
+
+@gateway_router.api_route(
+    "/notifications",
+    methods=["GET"],
+    tags=["Notifications Proxy"],
+    summary="Proxy: GET /notifications → notifications_service (protected)",
+)
+async def proxy_notifications_list(request: Request, _: dict = Depends(require_auth)):
+    """List notifications for authenticated user."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/notifications"
+    )
+
+
+@gateway_router.api_route(
+    "/notifications/{notification_id}/read",
+    methods=["POST"],
+    tags=["Notifications Proxy"],
+    summary="Proxy: POST /notifications/{id}/read → notifications_service (protected)",
+)
+async def proxy_notifications_mark_read(
+    notification_id: str, request: Request, _: dict = Depends(require_auth)
+):
+    """Mark a notification as read."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/notifications/{notification_id}/read"
+    )
+
+
+@gateway_router.api_route(
+    "/notifications/mark-all-read",
+    methods=["POST"],
+    tags=["Notifications Proxy"],
+    summary="Proxy: POST /notifications/mark-all-read → notifications_service (protected)",
+)
+async def proxy_notifications_mark_all_read(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Mark all notifications as read."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/notifications/mark-all-read"
+    )
+
+
+@gateway_router.api_route(
+    "/notifications/preferences",
+    methods=["GET"],
+    tags=["Notifications Proxy"],
+    summary="Proxy: GET /notifications/preferences → notifications_service (protected)",
+)
+async def proxy_notifications_get_preferences(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Get user notification preferences."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/notifications/preferences"
+    )
+
+
+@gateway_router.api_route(
+    "/notifications/preferences",
+    methods=["PUT"],
+    tags=["Notifications Proxy"],
+    summary="Proxy: PUT /notifications/preferences → notifications_service (protected)",
+)
+async def proxy_notifications_update_preferences(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Update user notification preferences."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/notifications/preferences"
+    )
+
+
+@gateway_router.api_route(
+    "/support/tickets",
+    methods=["POST"],
+    tags=["Support Proxy"],
+    summary="Proxy: POST /support/tickets → notifications_service (protected)",
+)
+async def proxy_support_ticket_create(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """Create a support ticket."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/support/tickets"
+    )
+
+
+@gateway_router.api_route(
+    "/support/tickets",
+    methods=["GET"],
+    tags=["Support Proxy"],
+    summary="Proxy: GET /support/tickets → notifications_service (protected)",
+)
+async def proxy_support_tickets_list(
+    request: Request, _: dict = Depends(require_auth)
+):
+    """List support tickets for user."""
+    return await _proxy_request(
+        request, f"{settings.notifications_service_url}/support/tickets"
     )

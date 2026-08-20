@@ -114,6 +114,11 @@ class AuthClient:
                 pass
         clear_credentials()
 
+    def get_stored_token(self) -> str | None:
+        """Retrieve stored access token from local credentials file."""
+        creds = load_credentials()
+        return creds.get("access_token") if creds else None
+
     def get_version(self) -> dict[str, Any]:
         """Fetch latest CLI version info from API."""
         url = f"{self.api_url}/v1/cli/version"

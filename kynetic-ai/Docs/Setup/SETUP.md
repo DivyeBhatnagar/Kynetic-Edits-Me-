@@ -23,6 +23,8 @@ node --version      # Output: v18.x.x or v20.x.x
 docker --version    # Output: Docker version 24.x+
 ```
 
+> **Security & Permissions Note:** For a detailed breakdown of user RBAC scopes, LUKS2 RAM encryption, Seccomp/AppArmor policies, and host system capability bounds, refer to [`PERMISSIONS_AND_SECURITY.md`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/PERMISSIONS_AND_SECURITY.md).
+
 ---
 
 ## 2. Cloning the Repository & Environment Setup

@@ -33,7 +33,7 @@ Kynetic is built on a 5-plane decoupled architecture operating on a **100% Pytho
 1. **Control Plane** — Asynchronous FastAPI microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`).
 2. **Data Plane** — PostgreSQL (source of truth), Redis (Pub/Sub event bus, rate limiting, session cache, denormalized search index), and Loki (structured log aggregation).
 3. **Edge Plane (Tunnel Gateway)** — NAT-traversing reverse-dial WebSocket relay cluster that terminates developer PTY streams and host connections without open inbound ports on the host.
-4. **Host Plane (Host Agent)** — Cross-Platform Python daemon running on rented compute nodes, managing hardware discovery, NVML telemetry, FP16/FP32 TFLOPS benchmarking, Firecracker MicroVM containers, WireGuard relays, and DoD 3-pass storage shredding.
+4. **Host Plane (Host Agent)** — Ultra-lightweight Cross-Platform Python daemon running on rented compute nodes with **~180–350 MB permanent base footprint (~94% footprint reduction)**. Uses native Ctypes NVML/CUDA driver GEMM benchmarking (zero bundled PyTorch/Redis in host agent binary), minimal Alpine 3.20 MicroVM rootfs (`rootfs-min.ext4` ~45 MB), stripped microVM kernel (`vmlinux-min` ~12 MB), containerd + `stargz-snapshotter` eStargz lazy image pulling (<2s cold start), bounded LRU cache manager, WireGuard relays, and DoD LUKS2 storage shredding.
 5. **Client Plane (CLI)** — 100% Python CLI (`kynetic-cli`) providing an instant developer experience (`login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`, `stop`, `terminate`).
 
 ---

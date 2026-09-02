@@ -2,13 +2,20 @@
 Host Agent — Backend Communication Client.
 
 Handles all communication between the Host Agent and the Kynetic AI backend:
-- Registration (POST /hosts/register)
-- Benchmark submission (POST /hosts/{host_id}/benchmarks)
-- Heartbeat loop (POST /hosts/heartbeat every N seconds)
-- Rebenchmark command subscription (Redis pub/sub)
+  - Registration     (POST /hosts/register)
+  - Benchmark submit (POST /hosts/{host_id}/benchmarks)
+  - Heartbeat loop   (POST /hosts/heartbeat every N seconds)
+  - Rebenchmark      Triggered via mTLS gRPC (HostAgentCommandServicer)
+                     — Redis pub/sub has been removed (Phase 1 optimization).
 
 mTLS is implemented via the client cert/key issued at registration:
 stored in the agent config directory and used for all subsequent requests.
+
+Phase 1 change: Redis is no longer a dependency. Rebenchmark commands
+arriving from the backend are delivered through the existing mTLS gRPC
+channel defined in command_listener.py (HostAgentCommandServicer).
+This removes ~15 MB from the binary and eliminates the Redis broker
+requirement for host machines.
 """
 
 import json
@@ -246,41 +253,45 @@ class KyneticAgentClient:
         if self._heartbeat_thread:
             self._heartbeat_thread.join(timeout=5)
 
-    # ── Rebenchmark command listener ──────────────────────────────────────────
-    def listen_for_rebenchmark(self) -> None:
+    # ── Rebenchmark command handler (mTLS gRPC — Phase 1) ────────────────────
+    def handle_rebenchmark_command(self) -> None:
         """
-        Subscribe to the Redis pub/sub channel for this host's commands.
-        When a 'rebenchmark' command arrives, run benchmarks and submit.
-        Runs in a background daemon thread.
+        Execute a rebenchmark triggered by the backend via mTLS gRPC.
+
+        Phase 1 change: This replaces the previous Redis pub/sub listener
+        (which required an `import redis` and a running Redis broker accessible
+        to every host machine). Commands are now routed through the
+        HostAgentCommandServicer in command_listener.py over the existing
+        mTLS gRPC control channel — no additional broker or network dependency.
+
+        Called by the gRPC servicer when a 'Rebenchmark' RPC arrives.
+        Can also be invoked directly by the heartbeat loop if the backend
+        returns a `rebenchmark_requested=true` flag in the heartbeat response.
         """
         if not self.config.host_id:
+            logger.warning("handle_rebenchmark_command.no_host_id")
             return
 
-        import redis
-        channel = f"kynetic:host:{self.config.host_id}:commands"
-
-        def _subscribe():
+        def _run() -> None:
             try:
-                r = redis.from_url(
-                    os.environ.get("KYNETIC_REDIS_URL", "redis://localhost:6379/0")
-                )
-                pubsub = r.pubsub()
-                pubsub.subscribe(channel)
-                logger.info("rebenchmark_listener_started", channel=channel)
-
-                for message in pubsub.listen():
-                    if message["type"] != "message":
-                        continue
-                    try:
-                        cmd = json.loads(message["data"])
-                        if cmd.get("command") == "rebenchmark":
-                            logger.info("rebenchmark_command_received")
-                            results = run_all_benchmarks()
-                            self.submit_benchmarks(results)
-                    except Exception as exc:
-                        logger.error("rebenchmark_command_error", error=str(exc))
+                logger.info("rebenchmark_command_received", transport="grpc_mtls")
+                results = run_all_benchmarks()
+                self.submit_benchmarks(results)
             except Exception as exc:
-                logger.error("rebenchmark_listener_error", error=str(exc))
+                logger.error("rebenchmark_execution_failed", error=str(exc))
 
-        t = threading.Thread(target=_subscribe, daemon=True, name="rebenchmark_listener")
+        t = threading.Thread(target=_run, daemon=True, name="rebenchmark_worker")
         t.start()
+
+    def listen_for_rebenchmark(self) -> None:
+        """
+        Deprecated shim — kept for backward-compatibility with callers that
+        previously called this method. Rebenchmark commands now arrive via the
+        mTLS gRPC channel (HostAgentCommandServicer). This method is a no-op;
+        the gRPC servicer calls handle_rebenchmark_command() directly.
+        """
+        logger.info(
+            "listen_for_rebenchmark.noop",
+            msg="Rebenchmark listener migrated to mTLS gRPC (command_listener.py). "
+                "Redis pub/sub removed in Phase 1.",
+        )

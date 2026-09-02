@@ -33,7 +33,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.db_models.host_models import Host, HostHeartbeat, HeartbeatStatus, HostStatus
-from libs.db_models.marketplace_models import Listing, ListingStatus
+from libs.db_models.marketplace_models import Currency, Listing, ListingStatus
 from libs.db_models.user_models import User, UserRole
 
 log = structlog.get_logger(__name__)
@@ -93,6 +93,7 @@ class ValidatedInstanceRequest:
     price_per_second_usd: Decimal
     price_per_second_inr: Decimal
     hold_amount: Decimal  # pre-computed hold for `hold_hours` of compute
+    hold_currency: Currency = Currency.usd
 
 
 # ── Individual validation steps ─────────────────────────────────────────────
@@ -239,8 +240,11 @@ async def _validate_host(
 async def _validate_account(
     db: AsyncSession,
     developer_id: Union[str, uuid.UUID],
-) -> None:
-    """Ensure the developer account exists and is active."""
+    listing: Listing,
+    hold_hours: Decimal,
+) -> tuple[Decimal, Currency]:
+    """Ensure the developer account and wallet exist, and balance is sufficient."""
+    from libs.db_models.marketplace_models import Wallet
     dev_uuid = _as_uuid(developer_id)
     user_res = await db.execute(select(User).where(User.id == dev_uuid))
     user = user_res.scalar_one_or_none()
@@ -249,6 +253,31 @@ async def _validate_account(
             "ACCOUNT_NOT_FOUND",
             "No active user account found for this developer.",
         )
+
+    wallet_res = await db.execute(select(Wallet).where(Wallet.user_id == dev_uuid))
+    wallet = wallet_res.scalar_one_or_none()
+    if wallet is None:
+        raise InstanceValidationError(
+            "WALLET_NOT_FOUND",
+            "Developer wallet account does not exist.",
+        )
+
+    if wallet.preferred_currency == Currency.inr:
+        required = (listing.price_per_hour_inr * hold_hours).quantize(Decimal("0.0001"))
+        if wallet.balance_inr < required:
+            raise InstanceValidationError(
+                "INSUFFICIENT_BALANCE",
+                f"Insufficient INR balance. Required: {required}, available: {wallet.balance_inr}.",
+            )
+        return required, Currency.inr
+    else:
+        required = (listing.price_per_hour_usd * hold_hours).quantize(Decimal("0.000001"))
+        if wallet.balance_usd < required:
+            raise InstanceValidationError(
+                "INSUFFICIENT_BALANCE",
+                f"Insufficient USD balance. Required: {required}, available: {wallet.balance_usd}.",
+            )
+        return required, Currency.usd
 
 
 # ── Public entry point ──────────────────────────────────────────────────────
@@ -293,8 +322,7 @@ async def validate_instance_request(
         host = await _validate_host(db, listing.host_id)
 
         # ── Step 4: Account Billing Readiness ──────────────────────────
-        await _validate_account(db, developer_id)
-        hold_amount = (listing.price_per_hour_usd * hold_hours).quantize(Decimal("0.000001"))
+        hold_amount, hold_currency = await _validate_account(db, developer_id, listing, hold_hours)
 
     except InstanceValidationError as exc:
         await log_validation_rejection(
@@ -323,4 +351,5 @@ async def validate_instance_request(
         price_per_second_usd=listing.price_per_second_usd,
         price_per_second_inr=listing.price_per_second_inr,
         hold_amount=hold_amount,
+        hold_currency=hold_currency,
     )

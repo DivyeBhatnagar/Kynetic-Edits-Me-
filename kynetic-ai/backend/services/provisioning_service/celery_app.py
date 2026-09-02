@@ -6,28 +6,16 @@ Beat schedule:
   after worker restarts.
 """
 
-from celery import Celery
-
+from libs.common.celery_factory import create_celery_app
 from services.provisioning_service.config import get_settings
 
 settings = get_settings()
 
-celery_app = Celery(
-    "provisioning_service",
-    broker=settings.celery_broker_url,
-    backend=settings.celery_result_backend,
-    include=["services.provisioning_service.tasks"],
-)
-
-celery_app.conf.update(
-    task_serializer="json",
-    result_serializer="json",
-    accept_content=["json"],
-    timezone="UTC",
-    enable_utc=True,
-    task_acks_late=True,           # re-queue on worker crash
-    worker_prefetch_multiplier=1,  # fair dispatch for long-running tasks
-    # Beat schedule — reconciliation sweep every 60 seconds
+celery_app = create_celery_app(
+    service_name="provisioning_service",
+    broker_url=settings.celery_broker_url,
+    result_backend=settings.celery_result_backend,
+    include_tasks=["services.provisioning_service.tasks"],
     beat_schedule={
         "reconcile-billing-every-60s": {
             "task": "reconcile_billing",

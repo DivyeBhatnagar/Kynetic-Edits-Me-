@@ -53,6 +53,21 @@ class ListingStatus(str, enum.Enum):
     delisted = "delisted"
 
 
+class Currency(str, enum.Enum):
+    usd = "usd"
+    inr = "inr"
+
+
+class TransactionType(str, enum.Enum):
+    topup = "topup"
+    credit = "credit"
+    debit = "debit"
+    refund = "refund"
+    hold = "hold"
+    release = "release"
+    adjustment = "adjustment"
+
+
 
 
 
@@ -280,5 +295,85 @@ class PricePerformanceStats(Base):
     avg_performance_score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     price_performance_ratio: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False, index=True)
     last_refreshed: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+
+# ── Wallet & WalletTransaction ───────────────────────────────────────────────
+
+class Wallet(Base):
+    """
+    User wallet account maintaining USD and INR balance balances.
+    """
+    __tablename__ = "wallets"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    balance_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0.0")
+    )
+    balance_inr: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=Decimal("0.0")
+    )
+    preferred_currency: Mapped[Currency] = mapped_column(
+        Enum(Currency, name="currency_enum", create_type=True),
+        nullable=False,
+        default=Currency.usd,
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    is_frozen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+class WalletTransaction(Base):
+    """
+    Immutable ledger of transactions (top-ups, debits, holds, refunds) for a user wallet.
+    """
+    __tablename__ = "wallet_transactions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    wallet_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    transaction_type: Mapped[TransactionType] = mapped_column(
+        Enum(TransactionType, name="transaction_type_enum", create_type=True),
+        nullable=False,
+        index=True,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    amount_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0.0"))
+    amount_inr: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal("0.0"))
+    balance_after_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0.0"))
+    balance_after_inr: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal("0.0"))
+    usd_to_inr_rate: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal("84.0"))
+    currency: Mapped[Currency] = mapped_column(
+        Enum(Currency, name="currency_enum", create_type=True),
+        nullable=False,
+        default=Currency.usd,
+    )
+    description: Mapped[str | None] = mapped_column(String(500))
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )

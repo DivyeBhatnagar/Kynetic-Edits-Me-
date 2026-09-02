@@ -18,6 +18,7 @@ from services.wallet_billing_service.billing import (
     assert_sufficient_balance,
     usd_to_inr,
 )
+import libs.db_models  # noqa: F401
 from services.wallet_billing_service.main import app
 
 USER_ID = str(uuid.uuid4())
@@ -26,9 +27,18 @@ JWT_PAYLOAD = {"sub": USER_ID, "role": "developer"}
 FX_RATE = Decimal("84.0")
 
 
+from libs.common.auth import require_auth
+from libs.db_models.database import get_db_session
+
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    mock_session = AsyncMock()
+    app.dependency_overrides[require_auth] = lambda: JWT_PAYLOAD
+    app.dependency_overrides[get_db_session] = lambda: mock_session
+    c = TestClient(app)
+    yield c
+    app.dependency_overrides.clear()
 
 
 # ── Billing math unit tests ────────────────────────────────────────────────

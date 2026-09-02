@@ -82,8 +82,11 @@ The system uses a **Container-inside-Firecracker MicroVM** architecture to deliv
 | Host Physical Node (Ubuntu / Debian + KVM + NVIDIA Driver)                        |
 |                                                                                   |
 |  +-----------------------------------------------------------------------------+  |
-|  | Host Agent Daemon (Python + Root / Sudo Daemon)                            |  |
+|  | Host Agent Daemon (Python + Root / Sudo Daemon, ~35-55 MB Binary)            |  |
 |  |  * mTLS gRPC Server with Idempotency Token Validation                       |  |
+|  |  * Native Ctypes NVML / CUDA GEMM Benchmark Runner (PyTorch-Free)           |  |
+|  |  * Containerd + Stargz Snapshotter Interface (eStargz Lazy Pulling <2s)       |  |
+|  |  * LRU Cache Manager & Orphan Volume TRIM GC                                  |  |
 |  |  * TPM 2.0 Remote Attestation Engine                                        |  |
 |  |  * nftables Default-Deny Firewall Manager                                  |  |
 |  |  * LUKS2 Master Key Generator (Ephemeral 512-bit AES-XTS in RAM)           |  |
@@ -92,8 +95,8 @@ The system uses a **Container-inside-Firecracker MicroVM** architecture to deliv
 |                                     v (Spawn per instance via UDS)                |
 |  +-----------------------------------------------------------------------------+  |
 |  | Firecracker MicroVM Process (VMM)                                            |  |
-|  |  - Kernel: `/opt/kynetic/vmlinux`                                           |  |
-|  |  - RootFS: `/opt/kynetic/rootfs.ext4`                                        |  |
+|  |  - Kernel: `/opt/kynetic/vmlinux-min` (~12 MB stripped Firecracker kernel)   |  |
+|  |  - RootFS: `/opt/kynetic/rootfs-min.ext4` (~45 MB minimal Alpine base)        |  |
 |  |  - Attached Block: `/mnt/kynetic_nvme/vol-{instance_id}.img` (LUKS2 mapped)  |  |
 |  |  - Net Device: `vmtap0` (Bridged + nftables isolated)                       |  |
 |  |  - Hardware VMM Memory & vCPU allocation                                   |  |
@@ -102,6 +105,7 @@ The system uses a **Container-inside-Firecracker MicroVM** architecture to deliv
 |  |  | Guest OS Container Execution Environment                             |  |  |
 |  |  |                                                                       |  |  |
 |  |  |   Workload Container Profile (HARDENED / VERIFIED):                   |  |  |
+|  |  |   - Container Runtime: containerd + stargz-snapshotter / runc        |  |  |
 |  |  |   - Seccomp: Custom strict syscall filtering                          |  |  |
 |  |  |   - AppArmor: `kynetic-hardened` profile                              |  |  |
 |  |  |   - Filesystem: Read-Only Root (`read_only_root_fs=true`)              |  |  |

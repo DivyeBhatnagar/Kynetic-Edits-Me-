@@ -21,6 +21,12 @@ Production prerequisites:
   - cryptsetup installed on the host
   - NVMe drive mounted at NVME_BASE_PATH
   - Root/sudo access for cryptsetup commands (host agent runs as root)
+
+Phase 4 additions:
+  - scan_orphan_volumes(): Detects vol-<uuid>.img files for instances
+    no longer in the active set — candidates for GC by cache_manager.py.
+  - garbage_collect_orphan_volumes(): TRIM + LUKS erase + unlink pipeline
+    for confirmed orphan volumes, preventing NVMe disk sprawl.
 """
 
 import hashlib
@@ -41,6 +47,159 @@ FIRECRACKER_MOCK = os.environ.get("FIRECRACKER_MOCK", "true").lower() == "true"
 NVME_BASE_PATH = os.environ.get("NVME_BASE_PATH", "/mnt/kynetic_nvme")
 # Default volume size per instance
 DEFAULT_VOLUME_SIZE_GB = int(os.environ.get("DEFAULT_VOLUME_SIZE_GB", "50"))
+# Orphan TTL: volumes older than this with no active instance are GC candidates
+ORPHAN_VOLUME_TTL_SECONDS = float(os.environ.get("KYNETIC_ORPHAN_TTL_HOURS", "2.0")) * 3600
+
+import time  # noqa: E402 (after constants for clarity)
+
+
+# ── Phase 4: Orphan Volume Scan & GC ──────────────────────────────────────────
+
+def scan_orphan_volumes(
+    active_instance_ids: set[str],
+    volume_dir: str = NVME_BASE_PATH,
+    ttl_seconds: float = ORPHAN_VOLUME_TTL_SECONDS,
+) -> list[dict]:
+    """
+    Phase 4: Scan the NVMe volume directory for orphaned vol-<uuid>.img files.
+
+    A volume is considered an orphan when:
+      1. Its instance UUID is NOT in the provided active_instance_ids set.
+      2. Its last-access time is older than ttl_seconds.
+
+    Returns a list of dicts describing each orphan candidate:
+      {"path": str, "instance_id": str, "size_bytes": int, "age_seconds": float}
+
+    Called by cache_manager.CacheManager._loop() on every eviction cycle.
+    """
+    orphans: list[dict] = []
+    base = Path(volume_dir)
+    if not base.exists():
+        return orphans
+
+    now = time.time()
+    for vol_file in base.glob("vol-*.img"):
+        try:
+            stat = vol_file.stat()
+            # Extract instance_id from filename: vol-<uuid>.img
+            instance_id = vol_file.stem[4:]  # strip leading 'vol-'
+            age_seconds = now - stat.st_atime
+            if instance_id not in active_instance_ids and age_seconds >= ttl_seconds:
+                orphans.append({
+                    "path": str(vol_file),
+                    "instance_id": instance_id,
+                    "size_bytes": stat.st_size,
+                    "age_seconds": round(age_seconds, 1),
+                })
+        except OSError:
+            pass
+
+    if orphans:
+        log.info(
+            "volume_manager.orphan_scan_found",
+            count=len(orphans),
+            total_size_gb=round(
+                sum(o["size_bytes"] for o in orphans) / (1024 ** 3), 3
+            ),
+        )
+    return orphans
+
+
+def garbage_collect_orphan_volumes(
+    active_instance_ids: set[str],
+    volume_dir: str = NVME_BASE_PATH,
+    ttl_seconds: float = ORPHAN_VOLUME_TTL_SECONDS,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Phase 4: GC confirmed orphan volumes — TRIM + LUKS erase + unlink.
+
+    Steps per orphan volume:
+      1. blkdiscard / TRIM to release underlying NAND blocks (NVMe hygiene).
+      2. cryptsetup erase to destroy the LUKS header (data unrecoverable).
+      3. unlink (delete) the sparse image file.
+
+    Args:
+        active_instance_ids: Set of UUIDs for currently-active instances.
+        volume_dir:          Path to scan (NVME_BASE_PATH).
+        ttl_seconds:         Minimum age before a volume is GC-eligible.
+        dry_run:             If True, logs actions without deleting anything.
+
+    Returns:
+        Dict with counts and bytes_reclaimed.
+    """
+    orphans = scan_orphan_volumes(active_instance_ids, volume_dir, ttl_seconds)
+    result = {
+        "scanned": len(orphans),
+        "deleted": 0,
+        "skipped": 0,
+        "bytes_reclaimed": 0,
+        "dry_run": dry_run,
+    }
+
+    if FIRECRACKER_MOCK:
+        log.info("volume_manager.orphan_gc.mock", orphan_count=len(orphans))
+        result["deleted"] = len(orphans)
+        result["bytes_reclaimed"] = sum(o["size_bytes"] for o in orphans)
+        return result
+
+    for orphan in orphans:
+        path = orphan["path"]
+        instance_id = orphan["instance_id"]
+        luks_name = f"kynetic-{instance_id[:8]}"
+
+        try:
+            if dry_run:
+                log.info(
+                    "volume_manager.orphan_gc.dry_run",
+                    path=path,
+                    instance_id=instance_id,
+                    size_gb=round(orphan["size_bytes"] / (1024 ** 3), 3),
+                )
+                result["deleted"] += 1
+                result["bytes_reclaimed"] += orphan["size_bytes"]
+                continue
+
+            # Step 1: TRIM / blkdiscard (best-effort)
+            subprocess.run(
+                ["blkdiscard", path],
+                capture_output=True, timeout=30, check=False,
+            )
+
+            # Step 2: Close and erase LUKS container (best-effort, may not exist)
+            subprocess.run(
+                ["cryptsetup", "close", luks_name],
+                capture_output=True, timeout=10, check=False,
+            )
+            subprocess.run(
+                ["cryptsetup", "erase", path, "--batch-mode"],
+                capture_output=True, timeout=30, check=False,
+            )
+
+            # Step 3: Unlink the sparse file
+            if os.path.exists(path):
+                os.unlink(path)
+
+            result["deleted"] += 1
+            result["bytes_reclaimed"] += orphan["size_bytes"]
+            log.info(
+                "volume_manager.orphan_gc.deleted",
+                path=path,
+                instance_id=instance_id,
+                size_gb=round(orphan["size_bytes"] / (1024 ** 3), 3),
+            )
+
+        except Exception as exc:
+            log.warning(
+                "volume_manager.orphan_gc.failed",
+                path=path,
+                instance_id=instance_id,
+                error=str(exc),
+            )
+            result["skipped"] += 1
+
+    log.info("volume_manager.orphan_gc.complete", **result)
+    return result
 
 
 def _volume_path(instance_id: uuid.UUID) -> str:

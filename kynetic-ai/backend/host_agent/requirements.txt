@@ -1,13 +1,21 @@
 # Host Agent requirements — bundled into the PyInstaller binary
+#
+# Optimization (Phase 1): torch and redis are intentionally REMOVED.
+#
+#   torch  — Removed ~1.8–2.2 GB. All GPU/CPU benchmarking is now performed
+#             via native ctypes bindings to libcuda.so / libcublas.so / libnvidia-ml.so
+#             (see benchmark_runner.py). Heavy PyTorch benchmarks run in an ephemeral
+#             container job when a full LLM/diffusion micro-model benchmark is needed.
+#
+#   redis  — Removed ~15 MB. The Redis pub/sub rebenchmark listener in agent_client.py
+#             has been replaced by the existing mTLS gRPC command channel in
+#             command_listener.py (HostAgentCommandServicer). This eliminates the need
+#             for a host-side Redis client and the requirement that hosts reach a Redis
+#             broker at all.
+#
+# Remaining dependencies are lean and strictly necessary for the host daemon:
 psutil>=5.9.8
 httpx>=0.27.0
-redis>=5.0.4
 structlog>=24.1.0
 pynvml>=11.5.0
 GPUtil>=1.4.0
-
-# PyTorch — install the correct variant for the target platform:
-# GPU (CUDA 12.1):   pip install torch --index-url https://download.pytorch.org/whl/cu121
-# CPU only:          pip install torch --index-url https://download.pytorch.org/whl/cpu
-# The line below installs CPU torch for CI/dev; override in production packaging.
-torch>=2.2.0

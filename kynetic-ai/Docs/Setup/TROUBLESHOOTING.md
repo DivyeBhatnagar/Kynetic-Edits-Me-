@@ -34,8 +34,28 @@ This document provides resolutions for common issues, error codes, and operation
      distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
      curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -
      sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-     sudo systemctl restart docker
+     sudo systemctl restart containerd
      ```
+
+### Issue: `ImportError: No module named 'torch'` on Host Agent startup
+- **Cause**: PyTorch was previously expected in `requirements.txt` but was intentionally removed in the Phase 1 Footprint Optimization (~2 GB size reduction).
+- **Resolution**: This is expected behavior. The host agent binary uses direct `ctypes` bindings to `libnvidia-ml.so` (NVML) and `libcublas.so` for GEMM benchmarking. Do NOT manually install `torch` into the host agent daemon environment.
+
+### Issue: `containerd` socket missing or stargz snapshotter failing
+- **Cause**: Host agent running with profile `standard` or `gpu` without containerd/stargz background service running.
+- **Resolution**:
+  1. Check containerd service status: `systemctl status containerd containerd-stargz-grpc`
+  2. Re-run runtime installer script:
+     ```bash
+     sudo bash infra/host_install/install_runtime.sh --profile standard
+     ```
+
+### Issue: Ephemeral NVMe disk full (`/mnt/kynetic_nvme`)
+- **Cause**: Accumulated image layers or orphaned volume files from ungracefully terminated instances.
+- **Resolution**: Trigger immediate LRU eviction cycle:
+  ```bash
+  python3 -c "from host_agent.cache_manager import CacheManager; CacheManager().run_eviction_cycle()"
+  ```
 
 ### Issue: `eBPF XDP filter attachment failed`
 - **Cause**: Linux host kernel version `< 5.4` or missing BPF kernel headers.

@@ -1,0 +1,89 @@
+# Phase 2 — Minimal Kynetic MicroVM RootFS Builder
+#
+# Builds a minimal Alpine 3.20-based rootfs.ext4 image (~45 MB uncompressed)
+# to replace the full Ubuntu/Debian server rootfs (~1.2 GB).
+#
+# What's included (strictly minimal):
+#   - Alpine 3.20 base (musl libc, busybox)
+#   - OpenRC init system
+#   - dropbear (lightweight SSH daemon, ~300 KB vs openssh's ~8 MB)
+#   - wireguard-tools (ip, wg — for peer tunnel setup)
+#   - e2fsprogs (for ext4 volume management inside the guest)
+#   - ca-certificates (for outbound TLS from the workload container)
+#
+# What's explicitly NOT included:
+#   - Python, pip, conda, any language runtime
+#   - gcc, make, build tools
+#   - systemd, udev, dbus
+#   - Any Docker or container daemon (workloads run in containerd inside)
+#   - OpenSSH (replaced by dropbear, saves ~7 MB)
+#
+# Build & output:
+#   docker build -f Dockerfile.rootfs -t kynetic-rootfs-builder .
+#   docker run --rm --privileged -v /opt/kynetic:/out kynetic-rootfs-builder
+#   → Produces /opt/kynetic/rootfs-min.ext4 (~45 MB)
+#
+# Usage in Firecracker:
+#   kernel_image_path: /opt/kynetic/vmlinux-min
+#   rootfs_path:       /opt/kynetic/rootfs-min.ext4
+#   is_read_only:      true  (shared read-only, instance writes to overlay)
+
+FROM alpine:3.20 AS rootfs-builder
+
+# Install packages into a clean chroot
+RUN apk add --no-cache \
+    alpine-baselayout \
+    busybox \
+    openrc \
+    dropbear \
+    dropbear-scp \
+    wireguard-tools \
+    e2fsprogs \
+    ca-certificates \
+    util-linux \
+    && true
+
+# Configure dropbear SSH service
+RUN mkdir -p /etc/dropbear \
+    && echo "PermitRootLogin yes" > /etc/dropbear/dropbear.conf \
+    && rc-update add dropbear default
+
+# Minimal /etc/inittab for Firecracker (no TTY mux, just serial console)
+RUN echo "::sysinit:/sbin/openrc sysinit" > /etc/inittab \
+    && echo "::sysinit:/sbin/openrc boot" >> /etc/inittab \
+    && echo "::once:/sbin/openrc default" >> /etc/inittab \
+    && echo "::respawn:/sbin/getty -L ttyS0 115200 vt100" >> /etc/inittab \
+    && echo "::ctrlaltdel:/sbin/reboot" >> /etc/inittab \
+    && echo "::shutdown:/sbin/openrc shutdown" >> /etc/inittab
+
+# Disable swap (no swap in MicroVM)
+RUN sed -i 's/swap//g' /etc/fstab 2>/dev/null || true
+
+# Set root password (overridden by SSH key injection at boot)
+RUN echo "root:kynetic" | chpasswd
+
+# ── Rootfs packaging stage ─────────────────────────────────────────────────────
+FROM alpine:3.20 AS packager
+
+RUN apk add --no-cache e2fsprogs
+
+COPY --from=rootfs-builder / /rootfs-staging/
+
+# Create ext4 image (50 MB = plenty for the minimal rootfs)
+# The actual used space will be ~30–45 MB.
+RUN dd if=/dev/zero of=/rootfs-min.ext4 bs=1M count=50 \
+    && mkfs.ext4 -F /rootfs-min.ext4 \
+    && mkdir -p /mnt/rootfs \
+    && mount /rootfs-min.ext4 /mnt/rootfs \
+    && cp -a /rootfs-staging/. /mnt/rootfs/ \
+    && umount /mnt/rootfs \
+    && e2fsck -f -y /rootfs-min.ext4 || true \
+    && resize2fs -M /rootfs-min.ext4
+
+# ── Output stage ───────────────────────────────────────────────────────────────
+FROM scratch AS output
+COPY --from=packager /rootfs-min.ext4 /rootfs-min.ext4
+
+# When run with: docker run --rm --privileged -v /opt/kynetic:/out <image>
+# the /rootfs-min.ext4 is available at /opt/kynetic/rootfs-min.ext4 on the host.
+CMD ["cp", "/rootfs-min.ext4", "/out/rootfs-min.ext4"]

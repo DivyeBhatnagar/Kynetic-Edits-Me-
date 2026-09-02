@@ -124,3 +124,27 @@ python3 -m pytest tests/integration/ -v
 # Run complete test suite (88 tests)
 python3 -m pytest tests/unit/ tests/integration/ -v
 ```
+
+---
+
+## 7. Host Agent Installation & Footprint Verification (Phases 0–7)
+
+Hardware provider nodes run the lightweight Host Agent daemon with **~180 MB – 350 MB static base footprint** (vs old ~3.9 GB baseline):
+
+### Installing the Host Agent
+```bash
+# Automated install (selects profile based on GPU presence)
+sudo bash infra/host_install/install_kynetic.sh --profile standard --backend http://localhost:8000
+
+# For GPU rental nodes:
+sudo bash infra/host_install/install_kynetic.sh --profile gpu
+```
+
+### Verifying Host Agent Footprint & Health
+```bash
+# Measure current disk usage breakdown
+python3 backend/host_agent/scripts/profile_footprint.py
+
+# Run Phase 7 post-installation verification check
+python3 backend/host_agent/scripts/verify_footprint.py --ci
+```

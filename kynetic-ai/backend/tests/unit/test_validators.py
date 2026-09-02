@@ -24,6 +24,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import libs.db_models  # noqa: F401
 from libs.db_models.host_models import Host, HostHeartbeat, HeartbeatStatus, HostStatus, OSType
 from libs.db_models.marketplace_models import (
     Currency,

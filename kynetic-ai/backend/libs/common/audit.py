@@ -65,9 +65,13 @@ async def audit_log(
         await session.flush()
         return ev
     except Exception as exc:
+        try:
+            session.expunge(ev)
+        except Exception:
+            pass
         log.error(
             "audit_log.write_failed",
-            event_type=event_type.value,
+            event_type=event_type.value if hasattr(event_type, "value") else str(event_type),
             user_id=str(user_id) if user_id else None,
             error=str(exc),
         )

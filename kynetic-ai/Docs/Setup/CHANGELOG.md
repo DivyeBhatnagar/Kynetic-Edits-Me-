@@ -2,6 +2,16 @@
 
 All notable changes to the **Kynetic AI** codebase across architectural phases are documented in this file.
 
+## [v6.0.0] - 2026-09-02 (Host Agent Size & Container Runtime Optimization — Phases 0–7)
+### Added & Optimized
+- **Host Footprint Reduction (~94% Reduction)**: Reduced permanent host installation footprint from ~3.9 GB down to ~180 MB – 350 MB.
+- **PyTorch & Redis Decoupling (Phase 1)**: Removed `torch` (~1.8–2.2 GB) and `redis` (~15 MB) from `requirements.txt`. Implemented native Ctypes NVML & CUDA driver GEMM throughput benchmarking (`benchmark_runner.py`). Rebenchmark RPCs routed through existing mTLS gRPC channel (`command_listener.py`). Extended `build.spec` stdlib excludes.
+- **Minimal MicroVM Assets (Phase 2)**: Replaced 1.2 GB Ubuntu rootfs with Alpine 3.20 minimal rootfs (`rootfs-min.ext4` ~45 MB, shared read-only mount) and stripped Linux 6.1 kernel (`vmlinux-min` ~12 MB).
+- **Containerd + Stargz Runtime (Phase 3)**: Replaced heavy Docker Engine (~450 MB) with minimal `containerd` + `runc` + `stargz-snapshotter` (~90 MB) for eStargz lazy image pulling (<2s container cold-start time).
+- **LRU Cache Manager & NVMe GC (Phase 4)**: Implemented `cache_manager.py` with 1.0–5.0 GB ephemeral storage caps, automated log rotation caps (10–25 MB), Firecracker socket cleanup, and NVMe-native `blkdiscard` TRIM & LUKS2 header erasure for orphaned volumes (`volume_manager.py`).
+- **Tiered Host Installer (Phase 6)**: Created `infra/host_install/install_kynetic.sh` supporting `lite` (<180 MB), `standard` (<250 MB), and `gpu` (<350 MB) installation profiles.
+- **Footprint Profiler & Verification Suite (Phases 0 & 7)**: Created `profile_footprint.py` and `verify_footprint.py` for pre/post installation footprint auditing and CI/CD policy gating.
+
 ---
 
 ## [v5.1.0] - 2026-07-24 (Control Plane Hardening & Integration Suite — Phases 27–33)

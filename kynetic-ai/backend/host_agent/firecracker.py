@@ -96,8 +96,14 @@ class FirecrackerVM:
         *,
         vcpus: int = 2,
         mem_mib: int = 4096,
-        kernel_image_path: str = "/opt/kynetic/vmlinux",
-        rootfs_path: str = "/opt/kynetic/rootfs.ext4",
+        # Phase 2: Updated defaults — minimal Alpine rootfs (~45 MB) and stripped vmlinux (~12 MB).
+        # Old defaults were /opt/kynetic/vmlinux (~35 MB) and /opt/kynetic/rootfs.ext4 (~1.2 GB).
+        # Build the minimal images with:
+        #   docker build -f backend/host_agent/rootfs_builder/Dockerfile.rootfs -t kynetic-rootfs .
+        #   docker run --rm -v /opt/kynetic:/out kynetic-rootfs
+        #   cd backend/host_agent/rootfs_builder && bash build_kernel.sh
+        kernel_image_path: str = "/opt/kynetic/vmlinux-min",
+        rootfs_path: str = "/opt/kynetic/rootfs-min.ext4",
         ssh_public_key: str,
         network_namespace: str | None = None,
     ) -> dict[str, Any]:
@@ -137,12 +143,12 @@ class FirecrackerVM:
             "vcpu_count": vcpus,
             "mem_size_mib": mem_mib,
         })
-        # 3. Root drive
+        # 3. Root drive — read-only shared base image (Phase 2: overlay mounts per instance)
         self._api_call("PUT", "/drives/rootfs", {
             "drive_id": "rootfs",
             "path_on_host": rootfs_path,
             "is_root_device": True,
-            "is_read_only": False,
+            "is_read_only": True,   # Phase 2: shared read-only rootfs; instance writes go to overlay
         })
         # 4. Network interface (isolated network namespace)
         self._api_call("PUT", "/network-interfaces/eth0", {

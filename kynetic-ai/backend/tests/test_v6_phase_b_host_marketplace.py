@@ -24,13 +24,22 @@ from services.host_service.main import app as host_app
 from services.marketplace_service.main import app as marketplace_app
 
 
+from libs.common.auth import require_auth
+from services.host_service.routes import get_current_user_id
+
+
 @pytest.fixture
-async def db_override(db_session: AsyncSession):
+async def db_override(db_session: AsyncSession, test_user_and_token):
+    user, _ = test_user_and_token
     async def _override():
         yield db_session
 
     host_app.dependency_overrides[get_db_session] = _override
+    host_app.dependency_overrides[require_auth] = lambda: {"sub": str(user.id), "role": "host"}
+    host_app.dependency_overrides[get_current_user_id] = lambda: user.id
     marketplace_app.dependency_overrides[get_db_session] = _override
+    marketplace_app.dependency_overrides[require_auth] = lambda: {"sub": str(user.id), "role": "host"}
+    marketplace_app.dependency_overrides[get_current_user_id] = lambda: user.id
     yield db_session
     host_app.dependency_overrides.clear()
     marketplace_app.dependency_overrides.clear()

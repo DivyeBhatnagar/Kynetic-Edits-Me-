@@ -31,10 +31,13 @@ The **Kynetic AI Backend** powers a compute marketplace connecting compute hosts
 - **Multiplexed PTY Stream**: Relays raw terminal input/output bytes with automatic reconnect and zero shell state loss.
 
 ### 3. 🖥️ Host Agent Daemon (`host_agent/`)
-- **GPU Discovery & NVML Telemetry**: Utilizes `pynvml` to inspect GPU models (RTX 4090, A100, H100, L40S) and streams live 10s telemetry: VRAM utilization, GPU core clock, temperature (°C), fan speed (%), and power draw (Watts).
-- **Hardware Benchmarking Suite**: Automatically benchmarks compute nodes upon onboarding: FP32 TFLOPS matrix mult and LLM inference performance loops.
+- **GPU Discovery & NVML Telemetry**: Utilizes `pynvml` & `ctypes` bindings to `libnvidia-ml.so` to inspect GPU models (RTX 4090, A100, H100, L40S) and streams live 10s telemetry: VRAM utilization, GPU core clock, temperature (°C), fan speed (%), and power draw (Watts).
+- **Native Ctypes Benchmarking Suite (PyTorch-Free)**: Native Ctypes CUDA driver & NVML GEMM throughput benchmarks for FP16/FP32 TFLOPS without bundling PyTorch or CUDA wheels in the host agent binary (saves ~1.8–2.2 GB). Deep PyTorch benchmarks are run in ephemeral containers.
+- **MicroVM & Container Runtime Stack**: Uses Firecracker with minimal Alpine 3.20 rootfs (`rootfs-min.ext4` ~45 MB) and stripped kernel (`vmlinux-min` ~12 MB) alongside `containerd` + `stargz-snapshotter` (~90 MB total) for sub-2s eStargz lazy image pulling.
+- **LRU Cache & Volume Manager (`cache_manager.py`, `volume_manager.py`)**: Bounded 1.0–5.0 GB ephemeral storage LRU eviction, automatic log rotation caps (10–25 MB), Firecracker socket cleanup, and NVMe orphan volume TRIM & LUKS2 header erasure.
+- **mTLS gRPC Control Channel (`command_listener.py`)**: Direct control-plane command servicer handling Launch, Stop, Terminate, and Rebenchmark RPCs over mTLS without external Redis pub/sub dependencies.
 - **PTY Stream Allocator (`host_agent/pty_handler.py`)**: Spawns pseudo-terminals (`pty.openpty()`) inside guest microVM containers.
-- **Cryptographic Storage Shredding (`host_agent/secure_delete.py`)**: Executes 3-pass DoD 5220.22-M storage shredding (`shred -n 3 -z`) and returns a signed `SecureDeletionReceipt`.
+- **Cryptographic Storage Shredding (`host_agent/volume_manager.py`)**: Executes LUKS2 key destruction and NVMe `blkdiscard` TRIM sanitization, returning a signed `SecureDeletionReceipt`.
 - **Runtime Cryptomining Abuse Detector (`host_agent/abuse_detector.py`)**: Pre-execution OCI container image safety scanner and process command-line inspection (`xmrig`, `ethminer`, `stratum+tcp://`).
 
 ### 4. 🌟 GPU Benchmarks, Rolling Health & Verified Hosts (v8 Features 1–3)

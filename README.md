@@ -436,44 +436,55 @@ To launch live with real paying customers with **zero bugs or downtime**, refer 
 
 ## Local Development & Operations Summary
 
-Refer to [DEVELOPMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/DEVELOPMENT.md) for detailed instructions.
+Refer to [Docs/Setup/SETUP.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/SETUP.md) for detailed instructions.
 
 ```bash
 # Clone the repository
-git clone https://github.com/KyneticSoftware/kynetic-ai.git
-cd kynetic-ai
+git clone https://github.com/DivyeBhatnagar/Kynetic-Edits-Me-.git
+cd Kynetic-Edits-Me-/kynetic-ai
 
-# Copy environment variables
-cp .env.example .env
+# 1. Build and install Go CLI binary
+cd cli_go && go build -ldflags="-s -w" -o kynetic . && cd ..
 
-# Start full microservice stack (11 services + workers) via Docker Compose
-docker-compose up --build -d
+# 2. Build Go Gateway Reverse Tunnel
+cd backend/services/gateway_tunnel_go && go build -ldflags="-s -w" -o gateway-tunnel . && cd ../../..
 
-# Execute Database Migrations (includes Phase 12, 28, 29 tables)
-docker-compose exec auth_service alembic upgrade head
+# 3. Build Go Host Agent Daemon
+cd backend/host_agent_go && go build -o kynetic-host-agent ./cmd/daemon && cd ../..
 
-# Run full test suite (88 unit + integration tests)
-python3 -m pytest tests/unit/ tests/integration/ -v
+# 4. Start Python Microservices & Datastores via Docker Compose
+docker compose -f infra/docker-compose.yml up -d
+
+# 5. Run Python Backend Integration Test Suite (81 passed, 100% pass rate)
+PYTHONPATH=backend pytest backend/tests/security cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
 ```
 
 ---
 
 ## Test Suite & Verification
 
-The repository includes comprehensive unit, integration, load, security, chaos, administrative, financial, legal, frontend, and Zero-Trust v4/v5 test suites.
+The platform test suite covers unit, integration, financial ledger, hardware attestation, zero-trust PDP, cryptographic shredding, and multi-attribute search verification:
 
 ```
-======================== 88 passed, 6 warnings in 2.25s ========================
+======================== 81 passed, 2 warnings in 4.12s ========================
 ```
 
-| Test Suite | Tests | Coverage |
-|---|---|---|
-| Validation Gate (Phase 27) | 21 | DB pre-flight checks, balance hold calculations, host freshness, error codes |
-| Billing Events & Metering (Phase 28) | 7 | Redis pub/sub event bus, status sync, per-second debit task, hold refund math |
-| Host Command Channel (Phase 29) | 6 | gRPC command dispatch, idempotency ring-buffer, `host_commands` audit table |
-| Pydantic Schemas (Phase 30) | 4 | Request quantization, requested_hours bounds, action & connection schemas |
-| Audit Logging & Diagnostics (Phase 31) | 4 | Rejection audit logs, action audit trail, host agent timing diagnostics |
-| State Machine & Ephemeral Keys (Phase 32) | 15 | Legal/illegal state transitions, RSA-4096 Fernet encryption, SSHSession CRUD, WireGuard IP allocation, deletion receipts |
-| Provisioning API Routes (Phase 32) | 5 | FastAPI TestClient route tests (`GET /instances`, `POST /instances/{id}/stop`, `POST /instances/{id}/terminate`) |
-| E2E Integration Suite (Phase 33) | 6 | Full lifecycle, validation gate rejection, host disconnect recovery, zero-balance auto-termination, idempotency replay prevention |
-| Core Financial & Utility Suites | 20 | Wallet debit/topup, Razorpay paise conversion, 18% GST invoice formatting |
+| Test Suite | Tests | Coverage & Verification Scope |
+|---|:---:|---|
+| **Security Enhancements Suite (`backend/tests/security/`)** | **25** | Single-use `RefreshToken` family rotation, SHA-256 `AuditLog` hash chaining & tip checkpointing, LUKS2 ephemeral key zeroing, TPM 2.0 attestation, Trust Score hard gate (29.0 `CRITICAL`), 8-dimension Zero Trust PDP, `nftables` tenant isolation & metadata block (`169.254.169.254`), Cosign Sigstore image signature admission gate, 0–100 Runtime Risk Engine, Abuse Detector, Secret Broker, Incident Response quarantine, and Verified Compute Scheduler pre-filter. |
+| **CLI & Core Auth Suite** | **5** | OAuth2 Device Authorization Grant flow, OS keychain credential storage, token auto-refresh, and Auth Gateway endpoints. |
+| **Host & Marketplace Suite** | **4** | Host hardware discovery, FLOPS benchmarking, mTLS certificate generation, and catalog search. |
+| **Runtime Lifecycle Suite** | **3** | Instance state machine transitions, pre-flight budget validators, and account billing readiness checks. |
+| **Agent Completion Suite** | **4** | PTY stream allocator, NVML live telemetry streaming, and 3-pass DoD storage shredding receipts. |
+| **Gateway & Tunnel Suite** | **2** | Cryptographic WebSocket tunnel tickets and multiplexed raw PTY session relay. |
+| **Developer DX & Scheduler Suite** | **5** | 1MB chunked file transfer checksums (SHA-256), `~/.ssh/config` block generator, 6-factor scheduler ranking, and host reputation telemetry. |
+| **Launch Readiness Suite** | **5** | Per-second billing metering & ledger recording, trust tier caps, emergency kill switch, cryptomining abuse detection, and Prometheus metrics scraping. |
+| **Payments & Double-Entry Ledger Suite** | **3** | Razorpay HMAC signature verification, database-level webhook replay protection, balanced double-entry financial ledger (`debit == credit`), and daily reconciliation validator. |
+| **KYC & Commission Suite** | **2** | App-layer encrypted KYC submission (`enc_v1_...`), provider linked account creation on admin approval, priority commission resolution, and host earnings split. |
+| **Payouts & Refunds Suite** | **4** | Payout batching ($50 minimum threshold) & transfer idempotency (`reference_id = payout.id`), manual review escalation, and platform `refund_reserve` buffer handling. |
+| **Benchmark & Health Suite** | **9** | Peer-group normalized FP16/FP32 FLOPS & VRAM bandwidth, min/max envelope fraud detection, rolling 7-day health stability scores, and HostScore history. |
+| **Reputation & Verification Suite** | **5** | Append-only reputation event log, exponential time-decay engine ($e^{-\lambda t}$), anti-gaming cancellation penalties, automatic Silver/Gold eligibility, and admin Enterprise review & revocation cascades. |
+| **Smart Search & Launch Suite** | **5** | GPU Benchmark Database analytics aggregation, side-by-side model comparison, denormalized search listing sync, multi-attribute smart search query engine, and `kynetic launch` CLI flags. |
+
+**Grand Total: 81 passed out of 81 tests (100% Success Rate)**.
+

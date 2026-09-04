@@ -639,6 +639,7 @@ kynetic-ai/
 │   │   │   ├── userns_jail.go            # Dual-Jail User Namespaces (userns) UID Remapping
 │   │   │   ├── ksm_shield.go             # Linux KSM Deduplication Shield
 │   │   │   ├── ima.go                    # Integrity Measurement Architecture & Secure Boot
+│   │   │   ├── speculative_fence_desync.go # Execution Serialization & Branch History Desync
 │   │   │   └── canary.go                 # Host Operator Physical Emergency Kill Switch
 │   │   ├── firewall/
 │   │   │   ├── odoh_resolver.go          # Oblivious DNS (ODoH) Cryptographic Resolver
@@ -656,6 +657,9 @@ kynetic-ai/
 │   │   └── volume/
 │   │       ├── mount_shield.go           # Host Storage Read-Only Mount Shield
 │   │       └── nvme_crypto_erase.go      # NVMe Controller Cryptographic Key Erase
+│   ├── libs/
+│   │   ├── admin_security/               # Tier 10: Admin & Treasury Security Modules
+│   │   └── federated_cryptoecon/         # Tier 11: Cryptoeconomic & Federated AI Modules
 │   └── services/
 │       ├── auth_service/repository.py    # Token Family Rotation & SHA-256 Chaining
 │       ├── marketplace_service/
@@ -675,8 +679,87 @@ kynetic-ai/
     │   ├── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
     │   ├── 22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md
     │   ├── 23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md
-    │   └── 24_Admin_Portal_Control_Plane_And_Treasury_Security_Implementation_Plan_v14.md
+    │   ├── 24_Admin_Portal_Control_Plane_And_Treasury_Security_Implementation_Plan_v14.md
+    │   └── 25_Cryptoeconomic_Federated_AI_Byzantine_Consensus_And_Deep_Hardware_Armor_Implementation_Plan_v15.md
     └── Security/
         ├── README.md
         └── COMPLETE_SECURITY_ARCHITECTURE.md
 ```
+
+---
+
+## 20. Tier 11 — Cryptoeconomic Proofs & Sybil Resistance
+
+### 20.1 Host Proof-of-Useful-Work (PoUW) Verifier (`pouw_verifier.py`)
+- **Deterministic Tensor Challenges**: Generates matrix trace challenges evaluating hardware throughput against theoretical FLOPS boundaries.
+- **Wesolowski Verifiable Delay Function (VDF)**: Requires sequential non-parallelizable iterative squaring proofs to prevent precomputed benchmark playback.
+
+### 20.2 Sybil Resistance & Host Identity Staking Graph (`sybil_staking.py`)
+- **Multi-Dimensional Clustering**: Cross-correlates /24 IP subnets, ASN diversity, KYC hashes, and TPM 2.0 AIK public keys.
+- **Dynamic Collateral Scaling**: Scales minimum escrow requirements quadratically as cluster concentration and multi-tenancy risk rise.
+
+### 20.3 Automated Escrow Slashing Protocol (`escrow_slashing.py`)
+- **Proof-of-Violation Evaluation**: Processes cryptographic attestation tampering, canary failures, and Byzantine poisoning updates.
+- **Atomic Capital Slashing**: Executes immediate forfeiture of staked escrows, permanent hardware blacklisting, and victim compensation pool allocations.
+
+### 20.4 Zero-Knowledge Resource Proofs (`zk_resource_proof.py`)
+- **Pedersen Commitments**: Proves VRAM allocation and continuous resource reservation $C = g^v h^r \pmod p$ without leaking host system layout, tenant memory contents, or PID namespaces.
+
+---
+
+## 21. Tier 11 — Federated AI Privacy, Byzantine Consensus & Model Integrity
+
+### 21.1 Confederated Secure Aggregation (SecAgg) (`secagg_engine.py`)
+- **Pairwise Additive Masking**: Generates symmetric mask seeds ($s_{u, v} = -s_{v, u}$) cancelling out across client sums.
+- **Server Blindness**: Guarantees the central aggregation coordinator computes exact weight averages without ever inspecting individual client gradients.
+
+### 21.2 Gradient Inversion Defense & DLG Trap (`gradient_inversion_trap.py`)
+- **Leakage Estimation**: Computes SNR and outlier variance metrics to identify Deep Leakage from Gradients (DLG/iDLG) vectors.
+- **Adaptive Sanitization**: Applies Top-K magnitude pruning and calibrated zero-mean Laplace noise.
+
+### 21.3 Byzantine-Robust Poisoning Filter (`byzantine_fl_filter.py`)
+- **Multi-Krum & Bulyan Aggregation**: Evaluates pairwise Euclidean distance geometry to isolate and discard coordinate-wise poisoned updates from up to $f$ colluding Byzantine workers.
+
+### 21.4 BFT State Machine Replication Guard (`bft_consensus_guard.py`)
+- **3-Phase PBFT Consensus**: Enforces Pre-Prepare, Prepare, and Commit state transitions with $2f+1$ Quorum Certificates for distributed cluster scheduling.
+
+### 21.5 Linearly Homomorphic Signature Tensor Verification (`homomorphic_tensor_sig.py`)
+- **Tensor Partition Signatures**: Authenticates linear combinations of model weight tensors in pipeline-parallel training topologies.
+
+### 21.6 Model Serialization Sandbox Trap (`pickle_sandbox_trap.py`)
+- **AST Opcode Inspection**: Disassembles pickle byte streams without execution, blocking dangerous callables (`os.system`, `subprocess`, `eval`) and enforcing SafeTensors migration.
+
+### 21.7 Safety Alignment Drift Attestor (`alignment_drift_attestor.py`)
+- **Canary Probe Suite**: Continuously evaluates refusal semantics on fine-tuned models to flag alignment subversion and jailbreak degradation.
+
+### 21.8 Ephemeral WireGuard Mesh Key Rotation (`wireguard_rotator.py`)
+- **15-Minute Ephemeral Exchange**: Orchestrates zero-drop dual-key transitions, monotonic frame nonces, and Perfect Forward Secrecy across the mesh.
+
+---
+
+## 22. Tier 11 — WORM Storage Vaults & Deep Silicon Hardware Armor
+
+### 22.1 WORM Object Storage Lock & Legal Hold (`storage_vaults.py`)
+- **S3 COMPLIANCE Mode**: Cryptographic retention clocks prohibiting early object modification, truncation, or deletion.
+
+### 22.2 Air-Gapped Dual-Custody Backup Vault (`storage_vaults.py`)
+- **Asymmetric Multi-Party Quorum**: Mandates dual-custodian cryptographic signatures for committing and restoring disaster recovery snapshots.
+
+### 22.3 Ransomware Early-Canary & Shannon Entropy Trap (`storage_vaults.py`)
+- **Entropy Tripwires**: Computes real-time byte entropy ($> 7.40\text{ bits/byte}$) on file updates and monitors filesystem canary tripwires.
+
+### 22.4 GPU PCIe Power Slew-Rate Glitch Trap (`power_slew_trap.go`)
+- **EMFI Anomaly Detection**: High-frequency $dI/dt$ ($> 15\text{ A}/\mu\text{s}$) and $dV/dt$ ($> 0.05\text{ V}/\mu\text{s}$) monitoring to detect electromagnetic and voltage glitching.
+
+### 22.5 Dynamic Memory Scrambling Key Rotation (`ddr5_msk_rotator.go`)
+- **DDR5 MSK Re-Scrambling**: Generates 128-bit cryptographic seeds committed to hardware DRAM controllers defeating cold-boot attacks.
+
+### 22.6 Instruction-Level Speculative Branch Desynchronizer (`speculative_fence_desync.go`)
+- **Execution Barrier Serialization**: Issues `lfence` barriers and injects non-deterministic branch patterns to clear BTB / PHT predictors.
+
+### 22.7 DMA Scatter-Gather Buffer Bounds Enforcer (`dma_bounds_enforcer.go`)
+- **IOMMU Table Verification**: Audits physical DMA descriptor tables to prevent wraparound and out-of-bounds peripheral memory accesses.
+
+### 22.8 Hardware TPM NVRAM Anti-Rollback Monotonic Counter (`tpm_nvram_counter.go`)
+- **Hardware Monotonic Increment**: Enforces TPM 2.0 NVRAM counter comparisons preventing firmware and agent state downgrades.
+

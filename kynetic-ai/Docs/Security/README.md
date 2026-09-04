@@ -12,9 +12,9 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
   - [Plan v9: Host Hardware Armor & Deep Isolation Advancements](../Plans/19_Host_Hardware_Armor_And_Deep_Isolation_Implementation_Plan_v9.md)
   - [Plan v10: Host Hardware Armor, Firmware Defense & Anti-Abuse](../Plans/20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md)
   - [Plan v11: Hardware Enclave, Peripheral Armor & Confidential Compute](../Plans/21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md)
-  - [Plan v12: Silicon Fault Injection, Post-Quantum & Microarchitectural Defenses](../Plans/22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md)
   - [Plan v13: PCIe Interconnect, Microarchitectural Transient Defense & Differential Privacy](../Plans/23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md)
   - [Plan v14: Admin Portal, Control Plane & Treasury Security](../Plans/24_Admin_Portal_Control_Plane_And_Treasury_Security_Implementation_Plan_v14.md)
+  - [Plan v15: Cryptoeconomic Proofs, Federated AI Privacy, Byzantine Consensus & Deep Hardware Armor](../Plans/25_Cryptoeconomic_Federated_AI_Byzantine_Consensus_And_Deep_Hardware_Armor_Implementation_Plan_v15.md)
 
 ---
 
@@ -34,6 +34,7 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 | [Tier 8] Runtime & Incident: Dynamic Risk Bands (0-100), Automated Containment    |
 | [Tier 9] Post-Quantum & Silicon: ML-KEM/Kyber, ML-DSA, Downfall, Inception, ZenBleed |
 | [Tier 10] Admin & Treasury Armor: M-of-N Quorum, JIT PAM, DDM, HSM Webhooks, ABAC|
+| [Tier 11] Cryptoeconomic, Byzantine & Deep Silicon: PoUW, SecAgg, BFT, WORM, MSK |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -159,6 +160,26 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 | **Telemetry Noise** | Differential Privacy Telemetry Noise Masking for Fan & Power | `backend/host_agent_go/pkg/hardware/telemetry_mask.go` | ✅ 100% Implemented |
 | **Hardware Hang** | Hardware Watchdog Timer `/dev/watchdog` Heartbeat Engine | `backend/host_agent_go/pkg/security/watchdog.go` | ✅ 100% Implemented |
 | **Kill Switch** | Host Operator Physical Emergency Kill Switch & File Canary | `backend/host_agent_go/pkg/security/canary.go` | ✅ 100% Implemented |
+| **PoUW Verifier** | Proof-of-Useful-Work Deterministic Tensor Challenge & VDF | `backend/libs/federated_cryptoecon/pouw_verifier.py` | ✅ 100% Implemented |
+| **Sybil Graph** | Subnet & Identity Staking Graph with Dynamic Collateral | `backend/libs/federated_cryptoecon/sybil_staking.py` | ✅ 100% Implemented |
+| **Escrow Slashing**| Automated Slashing Protocol & Victim Compensation Pool | `backend/libs/federated_cryptoecon/escrow_slashing.py` | ✅ 100% Implemented |
+| **zk-Resource** | Zero-Knowledge Proof of VRAM Allocation & Memory Lock | `backend/libs/federated_cryptoecon/zk_resource_proof.py` | ✅ 100% Implemented |
+| **SecAgg Engine** | Secure Aggregation with Pairwise Masking & Secret Sharing | `backend/libs/federated_cryptoecon/secagg_engine.py` | ✅ 100% Implemented |
+| **Gradient Trap** | Gradient Inversion DLG/iDLG Detector & Laplace Noise Filter | `backend/libs/federated_cryptoecon/gradient_inversion_trap.py` | ✅ 100% Implemented |
+| **Byzantine FL** | Multi-Krum & Bulyan Byzantine Poisoning Filter | `backend/libs/federated_cryptoecon/byzantine_fl_filter.py` | ✅ 100% Implemented |
+| **BFT Replication**| PBFT 3-Phase Consensus & $2f+1$ Quorum Certificate Guard | `backend/libs/federated_cryptoecon/bft_consensus_guard.py` | ✅ 100% Implemented |
+| **Homomorphic Sig**| Linearly Homomorphic Signature Tensor Verification | `backend/libs/federated_cryptoecon/homomorphic_tensor_sig.py` | ✅ 100% Implemented |
+| **Pickle Sandbox** | PyTorch Bytecode AST Scanner & SafeTensors Enforcer | `backend/libs/federated_cryptoecon/pickle_sandbox_trap.py` | ✅ 100% Implemented |
+| **Drift Attestor** | Safety Alignment Canary Probes & Jailbreak Refusal Monitor | `backend/libs/federated_cryptoecon/alignment_drift_attestor.py` | ✅ 100% Implemented |
+| **WireGuard PFS** | 15-Minute Ephemeral WireGuard Mesh Key Rotation Engine | `backend/libs/federated_cryptoecon/wireguard_rotator.py` | ✅ 100% Implemented |
+| **WORM Lock** | S3-Compliant WORM Object Lock with Legal Hold Immutability | `backend/libs/federated_cryptoecon/storage_vaults.py` | ✅ 100% Implemented |
+| **Air-Gap Vault** | Air-Gapped Immutable Dual-Custody Backup Quorum Vault | `backend/libs/federated_cryptoecon/storage_vaults.py` | ✅ 100% Implemented |
+| **Ransomware Trap**| Shannon Entropy File Mutation & Decoy Canary Tripwire | `backend/libs/federated_cryptoecon/storage_vaults.py` | ✅ 100% Implemented |
+| **Power Slew Trap**| GPU PCIe $dI/dt$ and $dV/dt$ EMFI Glitch Tripwire | `backend/host_agent_go/pkg/hardware/power_slew_trap.go` | ✅ 100% Implemented |
+| **DDR5 MSK** | Dynamic 128-bit DDR5 Memory Scrambling Key (MSK) Rotator | `backend/host_agent_go/pkg/hardware/ddr5_msk_rotator.go` | ✅ 100% Implemented |
+| **Speculative Fence**| Execution Serialization (`lfence`) & Branch History Desync | `backend/host_agent_go/pkg/security/speculative_fence_desync.go` | ✅ 100% Implemented |
+| **DMA Bounds** | IOMMU Scatter-Gather Physical Address Bounds Enforcer | `backend/host_agent_go/pkg/hardware/dma_bounds_enforcer.go` | ✅ 100% Implemented |
+| **TPM NVRAM Rollback**| Hardware TPM 2.0 NVRAM Monotonic Counter Anti-Rollback | `backend/host_agent_go/pkg/hardware/tpm_nvram_counter.go` | ✅ 100% Implemented |
 
 ---
 

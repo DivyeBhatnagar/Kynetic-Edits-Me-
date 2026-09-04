@@ -29,6 +29,18 @@ type GPUInfo struct {
 	UtilizationPct *float64
 }
 
+// GPUTelemetry represents live streaming metric samples from the GPU
+type GPUTelemetry struct {
+	Index          int     `json:"index"`
+	Model          string  `json:"model"`
+	TemperatureC   float64 `json:"temperature_c"`
+	HotspotTempC   float64 `json:"hotspot_temp_c,omitempty"`
+	PowerDrawW     float64 `json:"power_draw_w"`
+	UtilizationPct float64 `json:"utilization_pct"`
+	VRAMUsedMB     uint64  `json:"vram_used_mb"`
+	VRAMTotalMB    uint64  `json:"vram_total_mb"`
+}
+
 // HardwareManifest holds the full hardware snapshot of the host.
 // Matches backend HostRegistrationRequest.hardware JSON schema.
 type HardwareManifest struct {

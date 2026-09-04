@@ -325,6 +325,9 @@ Operating in an untrusted environment—where both the **host provider PC** and 
 | [`firewall_v10_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/firewall_v10_test.go) | Tier 3: ISP Guard (Plan v10) | Outbound PPS caps, SYN flood, port blacklist | ✅ PASS |
 | [`volume_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/volume/volume_test.go) | Tier 6: Mount Shield (Plan v9) | Read-only partition mount protection | ✅ PASS |
 | [`volume_v10_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/volume/volume_v10_test.go) | Tier 6: NVMe Crypto Erase (Plan v10) | NVMe sanitize / format --ses=2 key drop | ✅ PASS |
+| [`hardware_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/hardware/hardware_v11_test.go) | Tier 5 & 9: Hardware (Plan v11) | NVIDIA CC, SEV-SNP/TDX, SMT, USB, TB DMA, TLP, Capsule, BMC, GEMM Jitter, Tamper | ✅ PASS |
+| [`security_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/security_v11_test.go) | Tier 4, 7, 9: Security (Plan v11) | Memory poison shield, Cold boot, Shadow stack, BPF restrictor, Register zero, Module sign, Heartbeat | ✅ PASS |
+| [`firewall_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/firewall_v11_test.go) | Tier 3: Firewall (Plan v11) | DoH Tunnel guard, JA4+ fingerprint, MTU fragment filter | ✅ PASS |
 
 ---
 
@@ -341,7 +344,17 @@ kynetic-ai/
 │   │   │   ├── vbios_lock.go             # GPU VBIOS Flash Write-Lock & EEPROM Guard
 │   │   │   ├── audio_airgap.go           # Audio, Mic & Camera Bus Air-Gapping
 │   │   │   ├── rowhammer_guard.go        # DDR4/DDR5 Rowhammer & EDAC Memory Guard
-│   │   │   └── telemetry_mask.go         # Telemetry Noise / Acoustic Side-Channel Masker
+│   │   │   ├── telemetry_mask.go         # Telemetry Noise / Acoustic Side-Channel Masker
+│   │   │   ├── nvidia_cc.go              # NVIDIA Confidential Computing & H100/B200 APEX Mode
+│   │   │   ├── sev_tdx.go                # AMD SEV-SNP & Intel TDX CPU Enclave Memory Isolation
+│   │   │   ├── core_isolation.go         # SMT / Hyperthreading Decoupling & Cache Partitioning
+│   │   │   ├── usb_guard.go              # USB Host Controller Soft-Kill & BadUSB Interceptor
+│   │   │   ├── thunderbolt_dma.go        # Thunderbolt / USB4 PCIe DMA Guard
+│   │   │   ├── pcie_tlp_guard.go         # PCIe TLP Packet Poisoning & AER Error Detector
+│   │   │   ├── uefi_capsule_lock.go      # UEFI / BIOS SPI Flash Capsule Write-Lockdown
+│   │   │   ├── bmc_airgap.go             # Baseboard Management Controller (BMC/IPMI) Air-Gap
+│   │   │   ├── gemm_noise.go             # Constant-Time GPU GEMM & Clock Jitter Noise Injection
+│   │   │   └── chassis_tamper.go         # Chassis Physical Tamper Sensor & Accelerometer Lock
 │   │   ├── security/
 │   │   │   ├── ebpf_probe.go             # eBPF Syscall Monitor & Zero-Day Escape Guard
 │   │   │   ├── ksm_shield.go             # Kernel Samepage Merging (KSM) Deduplication Shield
@@ -350,11 +363,21 @@ kynetic-ai/
 │   │   │   ├── kernel_lockdown.go        # Linux Kernel Lockdown Mode Controller
 │   │   │   ├── watchdog.go               # Hardware Watchdog Timer /dev/watchdog
 │   │   │   ├── tpm_sealed_vault.go       # TPM 2.0 PCR-Sealed Local Vault
-│   │   │   └── cgroup_limits.go          # cgroups v2 Fork-Bomb & Process Ceiling Enforcer
+│   │   │   ├── cgroup_limits.go          # cgroups v2 Fork-Bomb & Process Ceiling Enforcer
+│   │   │   ├── memory_poison_shield.go   # MicroVM Memory Poisoning Shield (mlock, MADV_DONTDUMP)
+│   │   │   ├── cold_boot_guard.go        # Cold-Boot & RAM Remanence Anti-Freeze Guard
+│   │   │   ├── shadow_stack.go           # Control Flow Guard & Shadow Stack (Intel CET / ARM BTI)
+│   │   │   ├── bpf_restrictor.go         # eBPF JIT Hardening & BPF Syscall Restrictor
+│   │   │   ├── register_zero.go          # Deterministic Register Zeroing & Memory Residue Wipe
+│   │   │   ├── module_signing.go         # Immutable Kernel Module Signature Enforcement
+│   │   │   └── homomorphic_heartbeat.go  # Homomorphic Micro-Heartbeat & State Consensus
 │   │   ├── firewall/
 │   │   │   ├── lan_filter.go             # Local LAN Air-Gap & RFC1918 Egress Block
 │   │   │   ├── netns.go                  # Ephemeral Network Namespace Isolation
-│   │   │   └── isp_guard.go              # Outbound ISP Abuse & Anti-DDoS Traffic Policing
+│   │   │   ├── isp_guard.go              # Outbound ISP Abuse & Anti-DDoS Traffic Policing
+│   │   │   ├── doh_tunnel_guard.go       # Enforced Encrypted DNS & DNS-Tunneling Detection
+│   │   │   ├── ja4_fingerprint.go        # Outbound JA4+ TLS Fingerprint & Dynamic Anomaly Scorer
+│   │   │   └── mtu_fragment_filter.go    # Egress MTU Fragment & Covert Channel Filter
 │   │   └── volume/
 │   │       ├── mount_shield.go           # Host Storage Read-Only Mount Shield
 │   │       └── nvme_crypto_erase.go      # NVMe Controller Cryptographic Key Erase
@@ -380,7 +403,8 @@ kynetic-ai/
     ├── Plans/
     │   ├── 17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md
     │   ├── 19_Host_Hardware_Armor_And_Deep_Isolation_Implementation_Plan_v9.md
-    │   └── 20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md
+    │   ├── 20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md
+    │   └── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
     └── Security/
         ├── README.md
         └── COMPLETE_SECURITY_ARCHITECTURE.md

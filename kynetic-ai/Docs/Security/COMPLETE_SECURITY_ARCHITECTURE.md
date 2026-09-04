@@ -518,6 +518,155 @@ kynetic-ai/
 │           ├── image_scanner.py          # Cosign Cryptographic Admission Gate
 │           ├── audit_checkpoint.py       # Chain Tip Export & Integrity Verification
 │           └── incident_response.py      # Automated Host & Workload Containment Pipeline
+---
+
+## 17. Admin Portal, Control Plane & Privileged Access Governance (Plan v14)
+
+### 17.1 Privileged Identity & Multi-Party Quorum (PAM)
+- **Multi-Party Approval ($M$-of-$N$ Quorum)**: High-impact actions (payouts $> \$5\text{k}$, host bans, fee changes) require cryptographic multi-admin quorum before execution.
+- **Just-In-Time (JIT) Ephemeral Elevation**: Temporary elevation tickets with strict auto-TTL expiration (max 60 minutes) and automated revocation.
+- **FIDO2 / WebAuthn Hardware Token Enforcement**: Mandates physical security key presence, user verification, and automatic PIN lockout.
+- **Continuous Behavioral Step-Up Re-Auth**: Forces step-up hardware token touch upon sensitive record view or risk anomaly elevation.
+
+### 17.2 Data Privacy, Redaction & DLP
+- **Dynamic Data Masking (DDM)**: Column-level masking for SSNs, tax IDs, credit cards, bank accounts, and emails with single-use unmask tokens.
+- **Admin Read Audit Ledger**: Immutable cryptographic hash chain logging every admin read, search, and export event with query AST fingerprints.
+- **DOM Watermarking & Anti-Screenshot Steganography**: Dynamic forensic watermark tokens embedded across admin UI screens.
+- **DLP Export Circuit Breaker**: Hard velocity thresholds preventing bulk data exfiltration.
+
+---
+
+## 18. Financial Treasury Armor & CI/CD Supply Chain (Plan v14)
+
+### 18.1 Treasury & Payout Protection
+- **Payout Anomaly Circuit Breaker & Velocity Fuse**: Gaussian $3\sigma$ velocity anomaly detector holding fraudulent payout batches.
+- **Dual-Key HSM Webhook Signer**: Asymmetric threshold signing of payment dispatch webhooks to Stripe/Razorpay/Cashfree.
+- **Double-Entry Ledger Zero-Drift Reconciler**: Continuous mathematical proofs verifying Gateway Balance == Ledger Balance == Escrow Liability.
+
+### 18.2 Build Provenance & Platform Hardening
+- **SLSA Level 4 / In-Toto Hermetic Build Provenance**: Cryptographic attestation verification for release binaries.
+- **Admin IaC Drift Detection & Auto-Revert**: 5-minute continuous scan comparing live cloud resources against GitOps Terraform states.
+- **Signed Database Migration Hash Gate**: GPG/Cosign signatures and pre-execution SHA-256 hash gates for SQL migrations.
+- **Admin AI Copilot Execution Sandbox**: Strips indirect prompt injections and enforces read-only sandboxed AI tool calls.
+- **Automated Admin Compromise Lockdown**: Instant blast-radius quarantine revoking sessions and quarantining mutations.
+
+---
+
+## 19. Security Component Reference Map
+
+```
+kynetic-ai/
+├── backend/
+│   ├── libs/
+│   │   ├── admin_security/               # Admin Portal, Control Plane & Treasury Security (Plan v14)
+│   │   │   ├── pam_quorum.py             # Multi-Party Quorum, JIT PAM, FIDO2 & Step-Up Auth
+│   │   │   ├── data_governance.py        # Dynamic Data Masking, Read Audit Ledger & DLP
+│   │   │   ├── treasury_guard.py         # Payout Anomaly Fuse, HSM Webhooks & Ledger Proof
+│   │   │   ├── api_hardening.py          # Admin Mesh Guard, Break-Glass Shamir & ABAC
+│   │   │   ├── cicd_provenance.py        # SLSA Provenance, IaC Drift & Signed Migrations
+│   │   │   └── admin_incident.py         # Admin AI Copilot Sandbox & Blast-Radius Quarantine
+│   │   ├── common/
+│   │   │   ├── zero_trust.py             # 8-Dimensional Zero Trust PDP Engine
+│   │   │   └── secret_broker.py          # Scoped Secret Broker & Vault KMS Abstraction
+│   │   └── db_models/
+│   │       ├── user_models.py            # RefreshToken Family & Chained AuditLog Models
+│   │       └── host_models.py            # Host Attestation & Trust Score Models
+│   ├── host_agent_go/pkg/
+│   │   ├── hardware/
+│   │   │   ├── pcie_tdisp_guard.go       # PCIe 5.0/6.0 IDE Link Encryption & TDISP Guard
+│   │   │   ├── dma_fault_throttler.go    # IOMMU DMA Translation Fault & Poison Trap
+│   │   │   ├── cxl_memory_guard.go       # CXL 2.0/3.0 Dynamic Memory Pooling Guard
+│   │   │   ├── voltage_fault_detector.go # Voltage Fault & Glitch Injection Detector
+│   │   │   ├── nvlink_guard.go           # Multi-GPU NVLink Cryptographic Link Isolation
+│   │   │   ├── tme_sme.go                # Total Memory Encryption (Intel TME / AMD SME)
+│   │   │   ├── thermal_dither.go         # Thermal & Fan PWM Acoustic Dithering
+│   │   │   ├── microcode_guard.go        # CPU Microcode & Livepatch Cryptographic Guard
+│   │   │   ├── iommu.go                  # IOMMU Group Isolation Guard
+│   │   │   ├── nvidia_cc.go              # NVIDIA CC APEX Attestation Manager
+│   │   │   ├── sev_tdx.go                # AMD SEV-SNP / Intel TDX Enclave Manager
+│   │   │   ├── core_isolation.go         # SMT / Hyperthreading Decoupling
+│   │   │   ├── usb_guard.go              # USB Host Controller Soft-Kill & BadUSB
+│   │   │   ├── thunderbolt_dma.go        # Thunderbolt / USB4 PCIe DMA Guard
+│   │   │   ├── pcie_tlp_guard.go         # PCIe TLP Packet Poisoning & AER Detector
+│   │   │   ├── vbios_lock.go             # GPU VBIOS Write-Lock & EEPROM Guard
+│   │   │   ├── uefi_capsule_lock.go      # UEFI / BIOS SPI Flash Capsule Write-Lock
+│   │   │   ├── bmc_airgap.go             # Baseboard Management Controller (BMC) Airgap
+│   │   │   ├── vram_sanitizer.go         # GPU Framebuffer Multi-Pass Zeroizer
+│   │   │   ├── thermal_governor.go       # Hardware Thermal & Power Throttling Governor
+│   │   │   ├── gemm_noise.go             # Constant-Time GPU GEMM Jitter Injector
+│   │   │   ├── chassis_tamper.go         # Chassis Physical Tamper Sensor
+│   │   │   ├── rowhammer_guard.go        # DDR4/DDR5 Rowhammer & EDAC Memory Guard
+│   │   │   ├── audio_airgap.go           # Audio, Microphone & Camera Bus Air-Gap
+│   │   │   └── telemetry_mask.go         # Telemetry Fan & Acoustic Noise Masker
+│   │   ├── security/
+│   │   │   ├── downfall_scrubber.go      # Gather Data Sampling (Downfall) Scrubber
+│   │   │   ├── inception_barrier.go      # Inception & Retbleed Branch Predictor Barrier
+│   │   │   ├── zenbleed_neutralizer.go   # AMD ZenBleed SIMD Context Neutralizer
+│   │   │   ├── bhi_flush_engine.go       # Branch History Injection (BHI) Flush Engine
+│   │   │   ├── homomorphic_vector.go     # Homomorphic Vector Encryption (CKKS Proxy)
+│   │   │   ├── mpc_threshold_signer.go   # Multi-Party Computation (MPC) Threshold Signer
+│   │   │   ├── oram_concealer.go         # Oblivious RAM (ORAM) Access Pattern Concealer
+│   │   │   ├── quantum_entropy.go        # Quantum TRNG Harvester & NIST SP 800-90B
+│   │   │   ├── memfd_sealer.go           # Anonymous memfd Sealing & W^X Guard
+│   │   │   ├── landlock_sandbox.go       # Linux Landlock LSM Container Sandboxing
+│   │   │   ├── fg_kaslr_auditor.go       # Function-Granular KASLR Auditor
+│   │   │   ├── pid_depletion_guard.go    # PID Recycling Depletion Guard
+│   │   │   ├── model_watermark.go        # AI Weight Watermarking & Activation Embedder
+│   │   │   ├── differential_privacy.go   # Differential Privacy Gradient Clamping & Logits
+│   │   │   ├── fgsm_purifier.go          # Adversarial Tensor & FGSM Input Purifier
+│   │   │   ├── kernel_lockdown.go        # Linux Kernel Lockdown Mode Controller
+│   │   │   ├── ebpf_probe.go             # eBPF Privilege Escalation Syscall Monitor
+│   │   │   ├── watchdog.go               # Hardware Watchdog Timer (/dev/watchdog)
+│   │   │   ├── tpm_sealed_vault.go       # TPM 2.0 PCR-Sealed Local Vault
+│   │   │   ├── cgroup_limits.go          # cgroups v2 Fork-Bomb & Memory Ceiling
+│   │   │   ├── memory_poison_shield.go   # MicroVM Memory Poisoning Shield (mlock)
+│   │   │   ├── cold_boot_guard.go        # Cold-Boot & RAM Remanence Anti-Freeze Guard
+│   │   │   ├── shadow_stack.go           # Control Flow Guard & Shadow Stack (CET/BTI)
+│   │   │   ├── bpf_restrictor.go         # eBPF JIT Constant Blinding & Restrictor
+│   │   │   ├── register_zero.go          # Deterministic Register Zeroing & Residue Wipe
+│   │   │   ├── module_signing.go         # Immutable Kernel Module Signature Enforcement
+│   │   │   ├── homomorphic_heartbeat.go  # Homomorphic Micro-Heartbeat & State Consensus
+│   │   │   ├── speculation_barrier.go    # Speculative Store Bypass & Spectre v4 Barrier
+│   │   │   ├── l1tf_scrub.go             # L1 Terminal Fault (L1TF) Cache Invalidation Flush
+│   │   │   ├── mds_buffer_clear.go       # Microarchitectural Data Sampling (MDS) Buffer Clearing
+│   │   │   ├── tlb_kpti.go               # Translation Lookaside Buffer PCID/ASID & KPTI Guard
+│   │   │   ├── pqc_kem.go                # Post-Quantum Hybrid TLS Key Encapsulation (ML-KEM-1024)
+│   │   │   ├── pqc_sig.go                # Post-Quantum Digital Signature Verification (ML-DSA-87)
+│   │   │   ├── shamir_secret.go          # Threshold Shamir's Secret Sharing (SSS) Master Key
+│   │   │   ├── zkp_inference.go          # Zero-Knowledge Proof of AI Execution (zk-SNARK)
+│   │   │   ├── nested_virt_lock.go       # Hypervisor Nested Virtualization Lockout
+│   │   │   ├── host_redactor.go          # Host Kernel Information Leak & Serial Redactor
+│   │   │   ├── userns_jail.go            # Dual-Jail User Namespaces (userns) UID Remapping
+│   │   │   ├── ksm_shield.go             # Linux KSM Deduplication Shield
+│   │   │   ├── ima.go                    # Integrity Measurement Architecture & Secure Boot
+│   │   │   └── canary.go                 # Host Operator Physical Emergency Kill Switch
+│   │   ├── firewall/
+│   │   │   ├── odoh_resolver.go          # Oblivious DNS (ODoH) Cryptographic Resolver
+│   │   │   ├── zero_rtt_replay_guard.go  # TLS 1.3 / QUIC 0-RTT Anti-Replay Cache Guard
+│   │   │   ├── lan_filter.go             # Local LAN Air-Gap & RFC1918 Egress Block
+│   │   │   ├── netns.go                  # Ephemeral Network Namespace Isolation
+│   │   │   ├── isp_guard.go              # Outbound ISP Abuse & Anti-DDoS Traffic Policing
+│   │   │   ├── doh_tunnel_guard.go       # Enforced Encrypted DNS & DNS-Tunneling Detection
+│   │   │   ├── ja4_fingerprint.go        # Outbound JA4+ TLS Fingerprint & Dynamic Anomaly Scorer
+│   │   │   ├── mtu_fragment_filter.go    # Egress MTU Fragment & Covert Channel Filter
+│   │   │   ├── tcp_scrambler.go          # TCP ISN & Timestamp Randomization Scrambler
+│   │   │   ├── rapid_reset_mitigator.go  # HTTP/2 & HTTP/3 Rapid Reset (CVE-2023-44487) Mitigator
+│   │   │   ├── prompt_sanitizer.go       # AI Prompt Injection & Adversarial Jailbreak Sanitizer
+│   │   │   └── rpki_validator.go         # BGP Hijacking & RPKI Route Origin Validation
+│   │   └── volume/
+│   │       ├── mount_shield.go           # Host Storage Read-Only Mount Shield
+│   │       └── nvme_crypto_erase.go      # NVMe Controller Cryptographic Key Erase
+│   └── services/
+│       ├── auth_service/repository.py    # Token Family Rotation & SHA-256 Chaining
+│       ├── marketplace_service/
+│       │   └── verified_scheduler.py     # Verified Compute Hard Pre-Filter Stage
+│       └── security_service/
+│           ├── trust_manager.py          # TPM Attestation Hard Gate Trust Engine
+│           ├── runtime_monitor.py        # Composite Runtime Risk Engine & Response Bands
+│           ├── abuse_detector.py         # Multi-Vector Abuse Detection Engine
+│           ├── image_scanner.py          # Cosign Cryptographic Admission Gate
+│           ├── audit_checkpoint.py       # Chain Tip Export & Integrity Verification
+│           └── incident_response.py      # Automated Host & Workload Containment Pipeline
 └── Docs/
     ├── Plans/
     │   ├── 17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md
@@ -525,7 +674,8 @@ kynetic-ai/
     │   ├── 20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md
     │   ├── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
     │   ├── 22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md
-    │   └── 23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md
+    │   ├── 23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md
+    │   └── 24_Admin_Portal_Control_Plane_And_Treasury_Security_Implementation_Plan_v14.md
     └── Security/
         ├── README.md
         └── COMPLETE_SECURITY_ARCHITECTURE.md

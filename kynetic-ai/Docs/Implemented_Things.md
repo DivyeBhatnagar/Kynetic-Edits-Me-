@@ -620,4 +620,31 @@ Implemented in native Go under `backend/host_agent_go/pkg/`:
 19. **Oblivious DNS (ODoH) & Encrypted DoH Resolver ([odoh_resolver.go](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/odoh_resolver.go))**: Encrypts DNS questions through oblivious proxies separating client IPs from queries.
 20. **TLS 1.3 / QUIC 0-RTT Anti-Replay Cache Guard ([zero_rtt_replay_guard.go](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/zero_rtt_replay_guard.go))**: Sliding-window hash filter preventing 0-RTT early data duplicate replays.
 
+---
+
+## 🏛️ PART 11: Admin Portal, Control Plane & Treasury Security (Plan v14)
+
+Implemented in Python under `backend/libs/admin_security/`:
+1. **Multi-Party Approval (Four-Eyes / $M$-of-$N$ Quorum) ([pam_quorum.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/pam_quorum.py))**: Requires dual admin cryptographic approval before destructive or high-value actions (payouts $> \$5\text{k}$, host bans, fee mutations).
+2. **Just-In-Time (JIT) Ephemeral Privilege Elevation ([pam_quorum.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/pam_quorum.py))**: Issues short-lived role elevation tickets with strict TTL expiration (e.g. 60 min).
+3. **FIDO2 / WebAuthn Hardware Key Enforcer ([pam_quorum.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/pam_quorum.py))**: Mandates physical security key presence, user verification, and automatic PIN lockout.
+4. **Step-Up Authentication & Continuous Behavioral Risk Re-Auth ([pam_quorum.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/pam_quorum.py))**: Re-authenticates admins on sensitive record views or anomaly score spikes.
+5. **Dynamic Data Masking (DDM) & Cryptographic Field Redactor ([data_governance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/data_governance.py))**: Dynamically masks SSNs, PANs, bank accounts, credit cards, and emails with audited unmask tokens.
+6. **Admin Read Audit Ledger & Query Fingerprinter ([data_governance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/data_governance.py))**: Cryptographically chains and hashes every admin read/search event into an immutable ledger.
+7. **Client-Side DOM Watermark & Steganography Engine ([data_governance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/data_governance.py))**: Injects forensic attribution watermark tokens across admin UI screens to identify screenshot leaks.
+8. **Bulk Data Export Circuit Breaker & DLP Velocity Fuse ([data_governance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/data_governance.py))**: Strictly rate-limits mass record downloads (max 50/export, max 100/hr).
+9. **Payout Anomaly Circuit Breaker & Velocity Fuse ([treasury_guard.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/treasury_guard.py))**: Automatic Gaussian $3\sigma$ anomaly detector holding fraudulent payout batches.
+10. **Dual-Key HSM Webhook Signer ([treasury_guard.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/treasury_guard.py))**: Asymmetric threshold signing of payment dispatch webhooks to Stripe/Razorpay/Cashfree.
+11. **Double-Entry Ledger Zero-Drift Reconciler ([treasury_guard.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/treasury_guard.py))**: Continuous mathematical proof verifying Gateway Balance == Ledger Balance == Escrow Liability.
+12. **Admin API mTLS & Private Corporate Mesh Guard ([api_hardening.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/api_hardening.py))**: Enforces WireGuard/Tailscale private subnet ingress and mTLS client certificate validation.
+13. **Break-Glass Emergency Protocol with $(3, 5)$ Shamir Key Custody ([api_hardening.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/api_hardening.py))**: Offline quorum reconstruction of master disaster recovery platform keys.
+14. **Admin API Request Signing & Nonce Anti-Replay Engine ([api_hardening.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/api_hardening.py))**: Microsecond timestamped and signed API mutations eliminating replay attacks.
+15. **Contextual ABAC Engine with Device Health Posture ([api_hardening.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/api_hardening.py))**: Evaluates MDM compliance, disk encryption, and firewall status before granting admin access.
+16. **SLSA Level 4 / In-Toto Build Provenance Verifier ([cicd_provenance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/cicd_provenance.py))**: Verifies hermetic build attestations and Cosign signatures on release binaries.
+17. **Admin IaC Drift Detector & Auto-Remediator ([cicd_provenance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/cicd_provenance.py))**: Computes live cloud resource drift against GitOps Terraform states.
+18. **Signed Database Migration Hash Gate ([cicd_provenance.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/cicd_provenance.py))**: Verifies GPG/Cosign signatures and pre-execution SHA-256 hashes of SQL migration scripts.
+19. **Admin AI Copilot Execution Sandbox & Prompt Guard ([admin_incident.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/admin_incident.py))**: Strips indirect prompt injections from customer tickets and enforces read-only sandboxed AI tools.
+20. **Automated Admin Compromise Lockdown (Blast-Radius Quarantine) ([admin_incident.py](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/libs/admin_security/admin_incident.py))**: Instantly revokes sessions, invalidates API keys, and quarantines recent mutations upon anomaly detection.
+
+
 

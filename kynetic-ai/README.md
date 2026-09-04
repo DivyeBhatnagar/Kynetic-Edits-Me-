@@ -90,24 +90,33 @@ Kynetic AI uses a **Hybrid Go/Python** architecture — Go for I/O-bound high-co
 ## 🛠️ Installation & Quickstart
 
 ### Prerequisites
-- Python 3.10+
-- PostgreSQL 16+ & Redis 7+
+- **Go**: `1.22+` (for CLI, Host Agent, and Gateway Tunnel)
+- **Python**: `3.10+` (for FastAPI Control Plane Microservices)
+- **Datastores**: PostgreSQL 16+ & Redis 7+
 
-### Install CLI
+### Install Production Go CLI (Recommended)
 ```bash
-cd cli
-pip install -e .
+# Build high-performance Go static binary (~2ms startup, ~8MB)
+cd cli_go
+go build -ldflags="-s -w" -o kynetic .
+sudo mv kynetic /usr/local/bin/
+kynetic version
+```
+
+*(Optional) Python Reference CLI*:
+```bash
+cd cli && pip install -e .
 ```
 
 ### Basic Workflow
 ```bash
-# 1. Authenticate
+# 1. Authenticate via OAuth2 Device Grant
 kynetic login
 
 # 2. Search & Launch compute via Smart Search
 kynetic launch --gpu "RTX 4090" --max-price 2.00 --yes
 
-# 3. Connect to remote PTY terminal (or auto-connected during launch)
+# 3. Connect to remote raw PTY terminal (or auto-connected during launch)
 kynetic connect inst-abc12345
 
 # 4. Resume interrupted connection
@@ -119,8 +128,8 @@ kynetic cp ./dataset.tar.gz inst-abc12345:/workspace/
 # 6. Configure VS Code Remote SSH
 kynetic ssh inst-abc12345
 
-# 7. Terminate instance
-kynetic terminate inst-abc12345
+# 7. Terminate instance & verify storage shredding
+kynetic instances terminate inst-abc12345
 ```
 
 ---
@@ -154,13 +163,27 @@ PYTHONPATH=backend pytest backend/tests/security cli/tests/test_cli_auth.py back
 ---
 
 ## 📄 Documentation Index
+
+### Core Architecture & Guides
+- [Docs/README.md](Docs/README.md) — Master Architecture & Documentation Hub
+- [Implemented_Things.md](Docs/Implemented_Things.md) — Exhaustive Master Specification of Implemented Things (Phases 1–33, A–L, P1–P7, v8 Features 1–7, & Plan v2 Security Enhancements Parts 1–27)
+- [Things_Left_To_Do_Live_Production.md](Docs/Things_Left_To_Do_Live_Production.md) — Itemized Production Activation Playbook & Security Hardening Guide
+- [Docs/Setup/ARCHITECTURE.md](Docs/Setup/ARCHITECTURE.md) — Hybrid Go/Python Architecture Specification
+
+### Component Guides
+- [cli_go/README.md](cli_go/README.md) — Production Go CLI (~2ms startup, static binary, native PTY)
+- [backend/host_agent_go/README.md](backend/host_agent_go/README.md) — Production Go Host Agent Daemon (Firecracker, NVML, LUKS2, nftables)
+- [backend/services/gateway_tunnel_go/README.md](backend/services/gateway_tunnel_go/README.md) — Go Gateway Tunnel (10K+ concurrent SSH PTY reverse sessions)
+- [backend/README.md](backend/README.md) — Backend Microservices Architecture & Telemetry Specification
+- [backend/services/README.md](backend/services/README.md) — Microservices Registry & Port Catalog
+- [cli/README.md](cli/README.md) — Python Reference CLI
+- [frontend/README.md](frontend/README.md) — Next.js 16 Web Application & Developer Portal
+- [infra/README.md](infra/README.md) — Infrastructure as Code, Kubernetes Manifests & Observability Stack
+
+### Implementation Plans
 - [17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md](Docs/Plans/17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md) — 27-Part End-to-End Security Architecture Specification & Roadmap
 - [16_Implementation_Plan_v8.md](Docs/Plans/16_Implementation_Plan_v8.md) — GPU Benchmarks, Health Scores, Reputation, Verified Hosts, Smart Search & One Command Launch v8
 - [15_Implementation_Plan_v7.md](Docs/Plans/15_Implementation_Plan_v7.md) — Marketplace Payment, Billing, Commission & Payout Architecture v7
 - [14_Implementation_Plan_v6.md](Docs/Plans/14_Implementation_Plan_v6.md) — Production Engineering Specification & Master Roadmap v6
-- [Implemented_Things.md](Docs/Implemented_Things.md) — Exhaustive Master Specification of Implemented Things (Phases 1–33, A–L, P1–P7, v8 Features 1–7, & Plan v2 Security Enhancements Parts 1–27)
-- [Things_Left_To_Do_Live_Production.md](Docs/Things_Left_To_Do_Live_Production.md) — Itemized Production Activation Playbook & Security Hardening Guide
-- [backend/README.md](backend/README.md) — Backend Microservices Architecture & Telemetry Specification
-- [cli/README.md](cli/README.md) — 100% Python CLI Installation & Usage Guide
-- [07_Security_Architecture.md](Docs/Plans/07_Security_Architecture.md) — Zero-Trust Security Specification
+
 

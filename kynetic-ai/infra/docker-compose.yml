@@ -49,7 +49,7 @@ services:
   api_gateway:
     build:
       context: .
-      dockerfile: backend/services/api_gateway/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
@@ -75,7 +75,7 @@ services:
   auth_service:
     build:
       context: .
-      dockerfile: backend/services/auth_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload
     ports:
       - "8001:8001"
@@ -105,7 +105,7 @@ services:
   host_service:
     build:
       context: .
-      dockerfile: backend/services/host_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.host_service.main:app --host 0.0.0.0 --port 8002 --reload
     ports:
       - "8002:8002"
@@ -135,7 +135,7 @@ services:
   host_service_worker:
     build:
       context: .
-      dockerfile: backend/services/host_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.host_service.celery_app.celery_app worker
         --loglevel=info
@@ -165,7 +165,7 @@ services:
   celery_beat:
     build:
       context: .
-      dockerfile: backend/services/host_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.host_service.celery_app.celery_app beat
         --loglevel=info
@@ -193,7 +193,7 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: backend/services/auth_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       sh -c "
         echo 'Waiting for postgres...' &&
@@ -217,7 +217,7 @@ services:
   marketplace_service:
     build:
       context: .
-      dockerfile: backend/services/marketplace_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.marketplace_service.main:app --host 0.0.0.0 --port 8003 --reload
     ports:
       - "8003:8003"
@@ -246,7 +246,7 @@ services:
   marketplace_worker:
     build:
       context: .
-      dockerfile: backend/services/marketplace_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.marketplace_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -271,7 +271,7 @@ services:
   wallet_billing_service:
     build:
       context: .
-      dockerfile: backend/services/wallet_billing_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.wallet_billing_service.main:app --host 0.0.0.0 --port 8004 --reload
     ports:
       - "8004:8004"
@@ -302,7 +302,7 @@ services:
   wallet_worker:
     build:
       context: .
-      dockerfile: backend/services/wallet_billing_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.wallet_billing_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -327,7 +327,7 @@ services:
   provisioning_service:
     build:
       context: .
-      dockerfile: backend/services/provisioning_service/Dockerfile
+      dockerfile: backend/Dockerfile
     ports:
       - "8005:8005"
     environment:
@@ -364,7 +364,7 @@ services:
   provisioning_worker:
     build:
       context: .
-      dockerfile: backend/services/provisioning_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.provisioning_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=4
@@ -397,7 +397,7 @@ services:
   security_service:
     build:
       context: .
-      dockerfile: backend/services/security_service/Dockerfile
+      dockerfile: backend/Dockerfile
     ports:
       - "8006:8006"
     environment:
@@ -430,7 +430,7 @@ services:
   security_worker:
     build:
       context: .
-      dockerfile: backend/services/security_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.security_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -461,7 +461,7 @@ services:
   ai_router_service:
     build:
       context: .
-      dockerfile: backend/services/ai_router_copilot_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.ai_router_copilot_service.main:app --host 0.0.0.0 --port 8009 --reload
     ports:
       - "8009:8009"
@@ -491,7 +491,7 @@ services:
   reputation_pricing_service:
     build:
       context: .
-      dockerfile: backend/services/reputation_pricing_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.reputation_pricing_service.main:app --host 0.0.0.0 --port 8010 --reload
     ports:
       - "8010:8010"
@@ -518,7 +518,7 @@ services:
   reputation_pricing_worker:
     build:
       context: .
-      dockerfile: backend/services/reputation_pricing_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.reputation_pricing_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -543,7 +543,7 @@ services:
   notifications_service:
     build:
       context: .
-      dockerfile: backend/services/notifications_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.notifications_service.main:app --host 0.0.0.0 --port 8011 --reload
     ports:
       - "8011:8011"
@@ -572,7 +572,7 @@ services:
   notifications_worker:
     build:
       context: .
-      dockerfile: backend/services/notifications_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: >
       celery -A services.notifications_service.celery_app.celery_app worker
         --loglevel=info --queues=celery --concurrency=2
@@ -597,7 +597,7 @@ services:
   monitoring_service:
     build:
       context: .
-      dockerfile: backend/services/monitoring_service/Dockerfile
+      dockerfile: backend/Dockerfile
     command: uvicorn services.monitoring_service.main:app --host 0.0.0.0 --port 8012 --reload
     ports:
       - "8012:8012"

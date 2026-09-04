@@ -2,6 +2,14 @@
 
 > **v7.0.0**: The Host Agent is now a native **Go** static binary (`backend/host_agent_go/`). The legacy Python `host_agent/` package is retained for reference but the Go daemon is the production runtime.
 
+> [!IMPORTANT]
+> **No Docker Desktop Required on Hosts**:
+> The Host Agent operates directly at the OS level using:
+> - **Firecracker microVMs** for hardware virtualization
+> - **Standalone `containerd`** (~50 MB daemon) for rootfs unpacking
+> - **cgo NVML (`libnvidia-ml.so`)** for direct GPU kernel communication
+> Compute hosts do **NOT** need Docker Desktop or the heavy Docker daemon installed.
+
 The **Kynetic Go Host Agent** is a single, statically-compiled binary (~14 MB) installed on hardware provider machines. It replaces the PyInstaller Python agent (~55 MB), cutting idle RAM from ~45 MB → ~10 MB and startup time from ~3s → ~50 ms.
 
 ---

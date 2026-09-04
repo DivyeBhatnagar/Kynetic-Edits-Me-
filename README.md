@@ -436,6 +436,12 @@ To launch live with real paying customers with **zero bugs or downtime**, refer 
 
 ## Local Development & Operations Summary
 
+> [!NOTE]
+> **Zero Docker Desktop Requirement for Developers & Compute Hosts**:
+> - **End Users & Developers**: Zero Docker required. The standalone Go CLI (`kynetic`) runs natively in your terminal.
+> - **Compute Hosts**: Zero Docker Desktop required. The Go Host Agent runs directly via systemd using Firecracker microVMs and standalone `containerd`.
+> - **Docker / Compose**: Completely *optional* (used only if developers want to run the full cloud microservices stack locally in containers).
+
 Refer to [Docs/Setup/SETUP.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/SETUP.md) for detailed instructions.
 
 ```bash
@@ -443,20 +449,20 @@ Refer to [Docs/Setup/SETUP.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftw
 git clone https://github.com/DivyeBhatnagar/Kynetic-Edits-Me-.git
 cd Kynetic-Edits-Me-/kynetic-ai
 
-# 1. Build and install Go CLI binary
-cd cli_go && go build -ldflags="-s -w" -o kynetic . && cd ..
+# 1. Build and install Go CLI binary (Zero Docker, Zero Python dependencies)
+cd cli_go && go build -ldflags="-s -w" -o kynetic . && sudo mv kynetic /usr/local/bin/ && cd ..
 
 # 2. Build Go Gateway Reverse Tunnel
 cd backend/services/gateway_tunnel_go && go build -ldflags="-s -w" -o gateway-tunnel . && cd ../../..
 
-# 3. Build Go Host Agent Daemon
+# 3. Build Go Host Agent Daemon (Native Firecracker & cgo NVML, no Docker Desktop)
 cd backend/host_agent_go && go build -o kynetic-host-agent ./cmd/daemon && cd ../..
 
-# 4. Start Python Microservices & Datastores via Docker Compose
+# 4. (Optional) Start Python Microservices & Datastores via Docker Compose
 docker compose -f infra/docker-compose.yml up -d
 
-# 5. Run Python Backend Integration Test Suite (81 passed, 100% pass rate)
-PYTHONPATH=backend pytest backend/tests/security cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
+# 5. Run Python Backend Integration Test Suite (85 passed, 100% pass rate)
+PYTHONPATH=backend:cli pytest backend/tests/security cli/tests/test_cli_auth.py backend/tests/test_v6_phase_a_auth.py backend/tests/test_v6_phase_b_host_marketplace.py backend/tests/test_v6_phase_c_runtime.py backend/tests/test_v6_phase_d_agent_completion.py backend/tests/test_v6_phase_e_f_gateway_cli.py backend/tests/test_v6_phase_g_h_dx_scheduler.py backend/tests/test_v6_phase_i_j_k_l_launch_readiness.py backend/tests/test_v7_phase_1_2_payments_ledger.py backend/tests/test_v7_phase_3_4_kyc_commission.py backend/tests/test_v7_phase_5_6_7_payouts_refunds_dashboards.py backend/tests/test_v8_feature_1_benchmark_health_score.py backend/tests/test_v8_feature_2_3_reputation_verification.py backend/tests/test_v8_feature_4_5_6_search_launch.py
 ```
 
 ---

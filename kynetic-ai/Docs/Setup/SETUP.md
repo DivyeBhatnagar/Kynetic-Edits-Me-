@@ -9,13 +9,19 @@ This guide walks you through setting up a complete Kynetic AI development enviro
 Ensure your development machine satisfies the following hardware and software requirements:
 
 ### Software Requirements
+
+> [!NOTE]
+> **Zero Docker Desktop Requirement for Users & Hosts**:
+> - **End Users (Developers)**: Require **zero Docker**. You only need the standalone Go CLI binary (`kynetic`).
+> - **Compute Hosts**: Require **zero Docker Desktop**. The Go Host Agent runs natively via systemd with Firecracker microVMs and standalone `containerd`.
+> - **Backend Cloud Developers**: Docker / Docker Compose is **optional** for running the full local 11-microservice stack. You can also run services natively with Python.
+
 - **Git** (`>= 2.30`)
-- **Python** (`3.11` or higher) & `pip`
+- **Python** (`3.11` or higher) & `pip` (for backend control plane services)
 - **Go** (`1.22+`) — for Go CLI and Go Host Agent daemon
-- **Node.js** (`18.x` or higher) & `npm` / `pnpm`
-- **Docker Engine** & **Docker Compose** (`v2.x+`)
-- **PostgreSQL** (`v15+` — if running natively outside Docker)
-- **Redis** (`v7+` — if running natively outside Docker)
+- **Node.js** (`18.x` or higher) & `npm` / `pnpm` (for web frontend)
+- **PostgreSQL 16+ & Redis 7+** (native or via optional Docker)
+- **Docker Engine / Compose** (*Optional* — only for local multi-service container orchestration)
 
 Install Go on macOS:
 ```bash
@@ -27,7 +33,6 @@ go version   # Output: go version go1.22+ darwin/arm64
 ```bash
 python3 --version   # Output: Python 3.11.x or 3.12.x
 node --version      # Output: v18.x.x or v20.x.x
-docker --version    # Output: Docker version 24.x+
 go version          # Output: go version go1.22+
 ```
 

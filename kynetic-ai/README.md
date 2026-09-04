@@ -89,12 +89,18 @@ Kynetic AI uses a **Hybrid Go/Python** architecture — Go for I/O-bound high-co
 
 ## 🛠️ Installation & Quickstart
 
+> [!NOTE]
+> **Zero Docker Desktop Requirement for Developers & Compute Hosts**:
+> - **Developers & Users**: Zero Docker required. The standalone Go CLI (`kynetic`) runs natively with zero runtime dependencies.
+> - **Compute Hosts**: Zero Docker Desktop required. The Go Host Agent runs directly via systemd using Firecracker microVMs and standalone `containerd`.
+> - **Docker / Compose**: Strictly *optional* (only used if you want to spin up all 11 backend microservices locally in containers).
+
 ### Prerequisites
 - **Go**: `1.22+` (for CLI, Host Agent, and Gateway Tunnel)
 - **Python**: `3.10+` (for FastAPI Control Plane Microservices)
-- **Datastores**: PostgreSQL 16+ & Redis 7+
+- **Datastores**: PostgreSQL 16+ & Redis 7+ (native or via optional Docker)
 
-### Install Production Go CLI (Recommended)
+### Install Production Go CLI (Zero Docker, Zero Python Dependencies)
 ```bash
 # Build high-performance Go static binary (~2ms startup, ~8MB)
 cd cli_go

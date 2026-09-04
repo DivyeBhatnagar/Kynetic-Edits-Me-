@@ -377,6 +377,97 @@ kynetic-ai/
 │   │   │   ├── shadow_stack.go           # Control Flow Guard & Shadow Stack (Intel CET / ARM BTI)
 │   │   │   ├── bpf_restrictor.go         # eBPF JIT Hardening & BPF Syscall Restrictor
 │   │   │   ├── register_zero.go          # Deterministic Register Zeroing & Memory Residue Wipe
+---
+
+## 14. PCIe Interconnect, CXL Memory & Microarchitectural Transient Execution Armor (Plan v13)
+
+### 14.1 PCIe 5.0/6.0 IDE Link Encryption & TDISP Attestation
+- **PCIe IDE (Integrity and Data Encryption)**: Encrypts PCIe transport flits with hardware AES-GCM-256 to neutralize hardware interposer tapping between CPU root complex and high-speed GPU accelerators.
+- **TDISP Binding**: Maps peripheral sub-functions directly into confidential VM address spaces.
+
+### 14.2 Transient Execution Attack Mitigations
+- **Downfall / GDS (CVE-2022-40982)**: Vector register (`vzeroupper` / `vzeroall`) zeroing preventing cross-thread AVX gather data sampling.
+- **Inception (CVE-2023-20569) & Retbleed (CVE-2022-29900)**: `IBPB` branch prediction barriers and RAS depth flushing on tenant context switch.
+- **ZenBleed (CVE-2023-20593)**: Hardware `DE_CFG[9]` chicken bit validation and SIMD register context neutralization.
+- **Branch History Injection (BHI)**: Hardware `BHI_DIS_S` and calibrated software branch history queue clearing.
+
+---
+
+## 15. Advanced Cryptography, Privacy & Protocol Fortification (Plan v13)
+
+### 15.1 Privacy-Preserving AI Computation
+- **Homomorphic Vector Encryption (CKKS Proxy)**: Computes dot-products and vector embeddings directly on ciphertexts without decrypting sensitive prompt semantics.
+- **Differential Privacy**: Dynamically clamps gradient norms and injects calibrated Gaussian noise into token logit distributions.
+- **AI Weight Watermarking**: Injects mathematically verifiable trigger set watermarks into model activations to prove ownership against weight theft.
+- **FGSM / Adversarial Tensor Purifier**: Quantizes and smooths input tensors to strip imperceptible adversarial perturbation noise.
+
+### 15.2 Advanced Key Custody & Protocol Armor
+- **Decentralized Multi-Party Computation (MPC)**: $(t, n)$ threshold signature generation preventing single-node master key compromise.
+- **Oblivious RAM (ORAM)**: Shuffles memory paths and injects dummy memory accesses to prevent memory-bus address sniffing.
+- **Quantum Entropy Harvester**: Continuous NIST SP 800-90B Repetition Count and Adaptive Proportion health testing.
+- **Oblivious DoH (ODoH)**: Encrypted hybrid DNS resolution separating client IP addresses from recursive lookups.
+- **TLS 1.3 0-RTT Anti-Replay Cache**: Sliding-window hash filter blocking 0-RTT early data reflection attacks.
+
+---
+
+## 16. Security Component Reference Map
+
+```
+kynetic-ai/
+├── backend/
+│   ├── host_agent_go/pkg/
+│   │   ├── hardware/
+│   │   │   ├── pcie_tdisp_guard.go       # PCIe 5.0/6.0 IDE Link Encryption & TDISP Guard
+│   │   │   ├── dma_fault_throttler.go    # IOMMU DMA Translation Fault & Poison Trap
+│   │   │   ├── cxl_memory_guard.go       # CXL 2.0/3.0 Dynamic Memory Pooling Guard
+│   │   │   ├── voltage_fault_detector.go # Voltage Fault & Glitch Injection Detector
+│   │   │   ├── nvlink_guard.go           # Multi-GPU NVLink Cryptographic Link Isolation
+│   │   │   ├── tme_sme.go                # Total Memory Encryption (Intel TME / AMD SME)
+│   │   │   ├── thermal_dither.go         # Thermal & Fan PWM Acoustic Dithering
+│   │   │   ├── microcode_guard.go        # CPU Microcode & Livepatch Cryptographic Guard
+│   │   │   ├── iommu.go                  # IOMMU Group Isolation Guard
+│   │   │   ├── nvidia_cc.go              # NVIDIA CC APEX Attestation Manager
+│   │   │   ├── sev_tdx.go                # AMD SEV-SNP / Intel TDX Enclave Manager
+│   │   │   ├── core_isolation.go         # SMT / Hyperthreading Decoupling
+│   │   │   ├── usb_guard.go              # USB Host Controller Soft-Kill & BadUSB
+│   │   │   ├── thunderbolt_dma.go        # Thunderbolt / USB4 PCIe DMA Guard
+│   │   │   ├── pcie_tlp_guard.go         # PCIe TLP Packet Poisoning & AER Detector
+│   │   │   ├── vbios_lock.go             # GPU VBIOS Write-Lock & EEPROM Guard
+│   │   │   ├── uefi_capsule_lock.go      # UEFI / BIOS SPI Flash Capsule Write-Lock
+│   │   │   ├── bmc_airgap.go             # Baseboard Management Controller (BMC) Airgap
+│   │   │   ├── vram_sanitizer.go         # GPU Framebuffer Multi-Pass Zeroizer
+│   │   │   ├── thermal_governor.go       # Hardware Thermal & Power Throttling Governor
+│   │   │   ├── gemm_noise.go             # Constant-Time GPU GEMM Jitter Injector
+│   │   │   ├── chassis_tamper.go         # Chassis Physical Tamper Sensor
+│   │   │   ├── rowhammer_guard.go        # DDR4/DDR5 Rowhammer & EDAC Memory Guard
+│   │   │   ├── audio_airgap.go           # Audio, Microphone & Camera Bus Air-Gap
+│   │   │   └── telemetry_mask.go         # Telemetry Fan & Acoustic Noise Masker
+│   │   ├── security/
+│   │   │   ├── downfall_scrubber.go      # Gather Data Sampling (Downfall) Scrubber
+│   │   │   ├── inception_barrier.go      # Inception & Retbleed Branch Predictor Barrier
+│   │   │   ├── zenbleed_neutralizer.go   # AMD ZenBleed SIMD Context Neutralizer
+│   │   │   ├── bhi_flush_engine.go       # Branch History Injection (BHI) Flush Engine
+│   │   │   ├── homomorphic_vector.go     # Homomorphic Vector Encryption (CKKS Proxy)
+│   │   │   ├── mpc_threshold_signer.go   # Multi-Party Computation (MPC) Threshold Signer
+│   │   │   ├── oram_concealer.go         # Oblivious RAM (ORAM) Access Pattern Concealer
+│   │   │   ├── quantum_entropy.go        # Quantum TRNG Harvester & NIST SP 800-90B
+│   │   │   ├── memfd_sealer.go           # Anonymous memfd Sealing & W^X Guard
+│   │   │   ├── landlock_sandbox.go       # Linux Landlock LSM Container Sandboxing
+│   │   │   ├── fg_kaslr_auditor.go       # Function-Granular KASLR Auditor
+│   │   │   ├── pid_depletion_guard.go    # PID Recycling Depletion Guard
+│   │   │   ├── model_watermark.go        # AI Weight Watermarking & Activation Embedder
+│   │   │   ├── differential_privacy.go   # Differential Privacy Gradient Clamping & Logits
+│   │   │   ├── fgsm_purifier.go          # Adversarial Tensor & FGSM Input Purifier
+│   │   │   ├── kernel_lockdown.go        # Linux Kernel Lockdown Mode Controller
+│   │   │   ├── ebpf_probe.go             # eBPF Privilege Escalation Syscall Monitor
+│   │   │   ├── watchdog.go               # Hardware Watchdog Timer (/dev/watchdog)
+│   │   │   ├── tpm_sealed_vault.go       # TPM 2.0 PCR-Sealed Local Vault
+│   │   │   ├── cgroup_limits.go          # cgroups v2 Fork-Bomb & Memory Ceiling
+│   │   │   ├── memory_poison_shield.go   # MicroVM Memory Poisoning Shield (mlock)
+│   │   │   ├── cold_boot_guard.go        # Cold-Boot & RAM Remanence Anti-Freeze Guard
+│   │   │   ├── shadow_stack.go           # Control Flow Guard & Shadow Stack (CET/BTI)
+│   │   │   ├── bpf_restrictor.go         # eBPF JIT Constant Blinding & Restrictor
+│   │   │   ├── register_zero.go          # Deterministic Register Zeroing & Residue Wipe
 │   │   │   ├── module_signing.go         # Immutable Kernel Module Signature Enforcement
 │   │   │   ├── homomorphic_heartbeat.go  # Homomorphic Micro-Heartbeat & State Consensus
 │   │   │   ├── speculation_barrier.go    # Speculative Store Bypass & Spectre v4 Barrier
@@ -389,8 +480,13 @@ kynetic-ai/
 │   │   │   ├── zkp_inference.go          # Zero-Knowledge Proof of AI Execution (zk-SNARK)
 │   │   │   ├── nested_virt_lock.go       # Hypervisor Nested Virtualization Lockout
 │   │   │   ├── host_redactor.go          # Host Kernel Information Leak & Serial Redactor
-│   │   │   └── userns_jail.go            # Dual-Jail User Namespaces (userns) UID Remapping
+│   │   │   ├── userns_jail.go            # Dual-Jail User Namespaces (userns) UID Remapping
+│   │   │   ├── ksm_shield.go             # Linux KSM Deduplication Shield
+│   │   │   ├── ima.go                    # Integrity Measurement Architecture & Secure Boot
+│   │   │   └── canary.go                 # Host Operator Physical Emergency Kill Switch
 │   │   ├── firewall/
+│   │   │   ├── odoh_resolver.go          # Oblivious DNS (ODoH) Cryptographic Resolver
+│   │   │   ├── zero_rtt_replay_guard.go  # TLS 1.3 / QUIC 0-RTT Anti-Replay Cache Guard
 │   │   │   ├── lan_filter.go             # Local LAN Air-Gap & RFC1918 Egress Block
 │   │   │   ├── netns.go                  # Ephemeral Network Namespace Isolation
 │   │   │   ├── isp_guard.go              # Outbound ISP Abuse & Anti-DDoS Traffic Policing
@@ -428,7 +524,8 @@ kynetic-ai/
     │   ├── 19_Host_Hardware_Armor_And_Deep_Isolation_Implementation_Plan_v9.md
     │   ├── 20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md
     │   ├── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
-    │   └── 22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md
+    │   ├── 22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md
+    │   └── 23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md
     └── Security/
         ├── README.md
         └── COMPLETE_SECURITY_ARCHITECTURE.md

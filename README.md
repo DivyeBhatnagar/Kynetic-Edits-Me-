@@ -1,9 +1,10 @@
 # Kynetic AI — Compute-First, AI-Native Marketplace
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
+[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8.svg)](https://go.dev/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg)](#)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg)](#)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](#)
 [![Terraform](https://img.shields.io/badge/Terraform-1.6%2B-7B42BC.svg)](#)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-EKS%201.29-326CE5.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
@@ -16,16 +17,16 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
 
 > 📖 **Documentation & Setup Guides**: Access complete setup, architecture, API, database, and security guides in [kynetic-ai/Docs/Setup/](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup):
 > - 🛠️ [SETUP.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/SETUP.md) — Step-by-step local installation guide
-> - 🏛️ [ARCHITECTURE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/ARCHITECTURE.md) — 11-microservice system architecture & topology
+> - 🏛️ [ARCHITECTURE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/ARCHITECTURE.md) — Hybrid Go/Python system architecture & topology
 > - 🔑 [ENVIRONMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/ENVIRONMENT.md) — Complete environment variables reference
 > - 🌐 [API.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/API.md) — REST & WebSocket API endpoint specification
 > - 🗄️ [DATABASE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/DATABASE.md) — PostgreSQL database schema & double-entry ledger
 > - 🚀 [DEPLOYMENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/DEPLOYMENT.md) — Production AWS EKS, Terraform & Cloudflare deployment
-> - 💻 [HOST_AGENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/HOST_AGENT.md) — Host Agent daemon architecture & EV code signing
+> - 💻 [HOST_AGENT.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/HOST_AGENT.md) — Go Host Agent daemon architecture & EV code signing
 > - 🛍️ [MARKETPLACE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/MARKETPLACE.md) — Intent-based AI router & 6-factor reputation ranking
 > - 🤝 [CONTRIBUTING.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/CONTRIBUTING.md) — Contribution guidelines & TDD workflow
 > - 🔧 [TROUBLESHOOTING.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/TROUBLESHOOTING.md) — Common error resolution & FAQ guide
-> - 📜 [CHANGELOG.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/CHANGELOG.md) — Release version history & security v4/v5 changes
+> - 📜 [CHANGELOG.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/CHANGELOG.md) — Release version history & hybrid Go v7.0.0 changes
 > - 📄 [LICENSE](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/LICENSE) — Open source MIT License
 
 ---
@@ -36,40 +37,7 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
 2. [Reference Architecture](#reference-architecture)
 3. [Monorepo Directory Structure](#monorepo-directory-structure)
 4. [Technology Stack](#technology-stack)
-5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 33)](#implementation-plan-exhaustive-deep-dive-phases-1--33)
-   - [Phase 1: Foundations & Core Platform Skeleton](#phase-1-foundations--core-platform-skeleton)
-   - [Phase 2: Host Onboarding, Hardware Verification & Benchmarking](#phase-2-host-onboarding-hardware-verification--benchmarking)
-   - [Phase 3: Compute-First Marketplace & Wallet/Billing Core](#phase-3-compute-first-marketplace--walletbilling-core)
-   - [Phase 4: Provisioning, Scheduling & Instance Lifecycle](#phase-4-provisioning-scheduling--instance-lifecycle)
-   - [Phase 5: Security Hardening & Zero-Trust Safeguards](#phase-5-security-hardening--zero-trust-safeguards)
-   - [Phase 6: Zero-Setup App Templates & AI-Native Entry Point](#phase-6-zero-setup-app-templates--ai-native-entry-point)
-   - [Phase 7: AI Resource Router & AI Copilot](#phase-7-ai-resource-router--ai-copilot)
-   - [Phase 8: Host Experience, Auto-Pricing & Reputation Layer](#phase-8-host-experience-auto-pricing--reputation-layer)
-   - [Phase 9: External Marketplace Listings & Transparent Fallbacks](#phase-9-external-marketplace-listings--transparent-fallbacks)
-   - [Phase 10: India-First Regional Billing, Unified Monitoring & Dashboard](#phase-10-india-first-regional-billing-unified-monitoring--dashboard)
-   - [Phase 12: Infrastructure, Deployment & Production Readiness](#phase-12-infrastructure-deployment--production-readiness)
-   - [Phase 13: Observability, Alerting & Incident Response](#phase-13-observability-alerting--incident-response)
-   - [Phase 14: Testing, QA & Chaos Validation](#phase-14-testing-qa--chaos-validation)
-   - [Phase 15: Admin Panel & Internal Operations Tooling](#phase-15-admin-panel--internal-operations-tooling)
-   - [Phase 16: Financial Operations & Compliance Hardening](#phase-16-financial-operations--compliance-hardening)
-   - [Phase 17: Legal, Policy & Compliance Documentation](#phase-17-legal-policy--compliance-documentation)
-   - [Phase 18: Frontend Completion & Cross-Cutting Polish](#phase-18-frontend-completion--cross-cutting-polish)
-   - [Phase 19: Hardware Attestation & SEV-SNP/TDX Confidential Computing Detection](#phase-19-hardware-attestation--sev-snptdx-confidential-computing-detection)
-   - [Phase 20: Sealed Secret Injection & Host-Blind Key Provisioning](#phase-20-sealed-secret-injection--host-blind-key-provisioning)
-   - [Phase 21: NVIDIA Hopper/Blackwell Confidential Computing Mode Enforcement](#phase-21-nvidia-hopperblackwell-confidential-computing-mode-enforcement)
-   - [Phase 22: Ephemeral LUKS2 Encryption & Cryptographic NVMe Teardown Shredding](#phase-22-ephemeral-luks2-encryption--cryptographic-nvme-teardown-shredding)
-   - [Phase 23: Hardware-Attested Host-Blind Memory Protection](#phase-23-hardware-attested-host-blind-memory-protection)
-   - [Phase 24: Continuous Sub-Minute Re-Attestation & Emergency Kill-Switch Triggering](#phase-24-continuous-sub-minute-re-attestation--emergency-kill-switch-triggering)
-   - [Phase 25: Cryptographic Compute Execution Certificates (Ed25519)](#phase-25-cryptographic-compute-execution-certificates-ed25519)
-   - [Phase 26: Security Architecture v5 — 5-Layer Defense-in-Depth Overlay](#phase-26-security-architecture-v5--5-layer-defense-in-depth-overlay)
-   - [Phase 34: Implementation Plan v2 — 27-Part End-to-End Security Architecture & Verification Engine](#phase-34-implementation-plan-v2--27-part-end-to-end-security-architecture--verification-engine)
-   - [Phase 27: Business Logic Pre-Flight Validation Layer](#phase-27-business-logic-pre-flight-validation-layer)
-   - [Phase 28: Per-Second Billing Event Integration & Redis Event Bus](#phase-28-per-second-billing-event-integration--redis-event-bus)
-   - [Phase 29: Host Agent Idempotent Control Command Channel](#phase-29-host-agent-idempotent-control-command-channel)
-   - [Phase 30: Formalized Request/Response Schema Layer](#phase-30-formalized-requestresponse-schema-layer)
-   - [Phase 31: Audit Logging & Provisioning Diagnostics Subsystem](#phase-31-audit-logging--provisioning-diagnostics-subsystem)
-   - [Phase 32: Comprehensive Multi-Layer Unit Test Suite (82 Unit Tests)](#phase-32-comprehensive-multi-layer-unit-test-suite-82-unit-tests)
-   - [Phase 33: End-to-End Staging Integration Test Suite (88 Total Tests)](#phase-33-end-to-end-staging-integration-test-suite-88-total-tests)
+5. [Implementation Plan Exhaustive Deep-Dive (Phases 1 – 34)](#implementation-plan-exhaustive-deep-dive-phases-1--33)
 6. [Launch Readiness & Production Launch Checklist Status](#launch-readiness--production-launch-checklist-status)
 7. [Local Development & Operations Summary](#local-development--operations-summary)
 8. [Test Suite & Verification](#test-suite--verification)
@@ -89,42 +57,36 @@ Unlike legacy GPU-only marketplaces (RunPod, Vast.ai, Lambda), Kynetic AI treats
 
 ## Reference Architecture
 
+Kynetic AI operates on a **Hybrid Go/Python** architecture:
+
 ```
                     ┌────────────────────────────────────────────────────────┐
-                    │       Next.js + TypeScript + Tailwind Frontend         │
+                    │       Next.js 16 + React 19 + Tailwind Frontend        │
                     └───────────────────────────┬────────────────────────────┘
-                                                │ HTTPS / REST / WebSockets
+                                                │ HTTPS / REST
                                                 ▼
-                    ┌────────────────────────────────────────────────────────┐
-                    │               FastAPI API Gateway (:8000)              │
-                    │        (JWT Validation, Token-Bucket Rate Limiting)    │
-                    └───────────────────────────┬────────────────────────────┘
-                                                │ Internal REST / gRPC / mTLS
-        ┌───────────────────┬───────────────────┼───────────────────┬───────────────────┐
-        ▼                   ▼                   ▼                   ▼                   ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ Auth Service │    │ Marketplace  │    │  Provisioning│    │ Wallet &     │    │  AI Router   │
-│   (:8001)    │    │   (:8002)    │    │   (:8003)    │    │ Billing      │    │  & Copilot   │
-└──────────────┘    └──────────────┘    └───────┬──────┘    │   (:8004)    │    │   (:8005)    │
-                                                │           └──────────────┘    └──────────────┘
-                                                ▼
-                                    ┌──────────────────────┐
-                                    │ Host Agent (mTLS)    │
-                                    │ - Firecracker MicroVM│
-                                    │ - Ephemeral NVMe     │
-                                    │ - WireGuard NAT Relay│
-                                    └──────────────────────┘
-        ┌───────────────────┬───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼                   ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ Reputation & │    │  Security    │    │Notifications │    │  Monitoring  │
-│ Pricing      │    │  Service     │    │  Service     │    │  Service     │
-│   (:8006)    │    │   (:8007)    │    │   (:8010)    │    │   (:8011)    │
-└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+┌─────────────────────────────────┐ ┌────────────────────────────────────────────────────────┐
+│   Kynetic CLI [GO BINARY]       │ │               FastAPI API Gateway (:8000)              │
+│   ~2ms startup, native PTY      ├─┤        (JWT Validation, Token-Bucket Rate Limiting)    │
+└────────────────┬────────────────┘ └───────────────────────────┬────────────────────────────┘
+                 │                                              │ Internal REST / gRPC / mTLS
+                 │ Reverse SSH PTY      ┌───────────────────────┼───────────────────────┐
+                 ▼                      ▼                       ▼                       ▼
+┌─────────────────────────────────┐ ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ Gateway Tunnel [GO BINARY]      │ │ Auth Service │    │ Marketplace  │    │  Provisioning│
+│ (:8008, 12,000+ goroutines)     │ │   (:8001)    │    │   (:8002)    │    │   (:8003)    │
+└────────────────┬────────────────┘ └──────────────┘    └──────────────┘    └───────┬──────┘
+                 │ Reverse Dial WebSocket                                           │ gRPC mTLS
+                 ▼                                                                  ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             Host Agent Daemon [GO BINARY]                                  │
+│ - Firecracker MicroVM SDK   - cgo NVML Telemetry  - Ephemeral LUKS2 & NVMe TRIM Shredding │
+│ - nftables Network Barrier  - Bounded LRU Cache   - TPM 2.0 Attestation Quote Generator   │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 
 Data Infrastructure:
-- PostgreSQL (SQLAlchemy 2.0 Async + Alembic Migrations)
-- Redis (Session Cache + Rate Limiting + Celery Message Broker + Billing Event Bus)
+- PostgreSQL 16 (SQLAlchemy 2.0 Async + Alembic Migrations)
+- Redis 7+ (Session Cache + Rate Limiting + Pub/Sub Billing Event Bus)
 - Prometheus & Grafana (Platform Metrics & Telemetry)
 ```
 
@@ -134,60 +96,53 @@ Data Infrastructure:
 
 ```
 kynetic-ai/
+├── cli_go/               # Production Go CLI (~2ms startup, ~8MB static binary, native PTY)
+├── cli/                  # Python Reference CLI & test harness
 ├── frontend/             # Next.js 16 Unified Web Application (User, Host & Admin)
-│   ├── app/              # Next.js App Router (marketplace, copilot, instances, wallet, admin, etc.)
-│   ├── components/       # UI Components & Navigation
-│   └── lib/              # API Client & Zustand Auth Store
-├── libs/                 # Shared Python Libraries
-│   ├── db_models/        # Shared SQLAlchemy 2.0 Async DB models (User, Host, Listing, Instance, BillingMeterJob, HostCommand)
-│   ├── schemas/          # Pydantic schemas for request/response validation
-│   ├── common/           # structlog logger, httpx async client, middleware, settings
-│   └── events/           # Redis Pub/Sub event bus (INSTANCE_RUNNING, INSTANCE_TERMINATED, INSTANCE_FAILED)
-├── services/             # FastAPI Microservices
-│   ├── api_gateway/      # Unified entry point, JWT validation & token-bucket rate limiter
-│   ├── auth_service/     # Authentication, bcrypt password hashing, PyJWT rotation & OTP
-│   ├── host_service/     # Host hardware registration & NVML telemetry ingestion
-│   ├── marketplace_service/ # Compute inventory, search engine & scheduling
-│   ├── wallet_billing_service/ # Wallet balances, per-second metering tasks, dual-currency (USD/INR) & Stripe
-│   ├── provisioning_service/   # Instance lifecycle, pre-flight validators, Firecracker & WireGuard tunneling
-│   ├── security_service/       # Admin kill-switch, image scanner & trust tier governance
-│   ├── ai_router_copilot_service/ # Workload ranking & WebSocket Copilot chat
-│   ├── reputation_pricing_service/ # Dynamic pricing & 6-factor host reputation engine
-│   ├── notifications_service/  # Notification worker & email dispatcher
-│   └── monitoring_service/     # Prometheus client metrics scrape & health engine
-├── host_agent/           # Cross-platform Python Host Agent, command servicer, idempotency store & PyTorch Benchmark Engine
-├── Docs/                 # Architecture, API & Setup Documentation
-├── infra/                # Docker Compose & Kubernetes production manifests
-├── tests/                # Pytest unit & integration test suites
-└── pyproject.toml        # Root Python project dependencies
+├── backend/
+│   ├── host_agent_go/    # Production Go Host Agent daemon (Firecracker, cgo NVML, LUKS2, nftables)
+│   ├── host_agent/       # Python Reference Host Agent implementation
+│   ├── proto/            # Protobuf gRPC contracts (agent_service.proto)
+│   ├── libs/             # Shared Python Libraries (db_models, schemas, common, events)
+│   ├── services/         # FastAPI Microservices & Go Gateway Tunnel
+│   │   ├── gateway_tunnel_go/       # High-throughput Go reverse-dial tunnel daemon (:8008)
+│   │   ├── api_gateway/             # Unified entry point & rate limiter (:8000)
+│   │   ├── auth_service/            # Authentication & JWT rotation (:8001)
+│   │   ├── marketplace_service/     # Compute inventory & smart search (:8002)
+│   │   ├── provisioning_service/    # Instance lifecycle & gRPC client (:8003)
+│   │   ├── wallet_billing_service/  # Dual-currency wallet & double-entry ledger (:8004)
+│   │   ├── ai_router_copilot_service/# Workload ranking & Copilot chat (:8005)
+│   │   ├── reputation_pricing_service/# Time-decay reputation & GPU benchmark DB (:8006)
+│   │   ├── security_service/        # Zero-Trust PDP & TPM attestation (:8007)
+│   │   ├── notifications_service/   # Notification worker & email dispatcher (:8010)
+│   │   ├── monitoring_service/      # Prometheus scrape & health engine (:8011)
+│   │   └── payout_service/          # Host KYC onboarding & payouts (:8012)
+│   └── tests/            # Full test suites across all phases & security
+├── Docs/                 # Architecture, API, Setup, Plans & Runbooks
+├── infra/                # Terraform, Kubernetes manifests & host install scripts
+└── pyproject.toml        # Root Python project configuration
 ```
 
 ---
 
 ## Technology Stack
 
-| Layer | Technology Used |
-|---|---|
-| **Backend Framework** | FastAPI (ASGI, Async Python 3.11+) |
-| **Server Engine** | Uvicorn / Gunicorn |
-| **Authentication & Tokens** | `bcrypt` (password hashing) + `PyJWT` (JWT token rotation) |
-| **ORM & Database** | SQLAlchemy 2.0 (Async Engine) + PostgreSQL + Alembic |
-| **Caching & Messaging** | Redis 7+ (Session Store, Rate Limiting, Celery Broker, Pub/Sub Event Bus) |
-| **Task Queue** | Celery + APScheduler |
-| **Host Agent & Control Channel** | Python (PyInstaller binary), gRPC / mTLS servicer, `psutil`, `pynvml` |
-| **Benchmarking** | PyTorch micro-benchmarks (FLOPs, LLM tok/s, SD step latency) |
-| **Machine Learning** | `scikit-learn` + `pandas` (Auto-pricing regression & idle prediction) |
-| **AI Router & Copilot** | LangChain + OpenAI/Anthropic APIs + WebSockets |
-| **Isolation & Virtualization** | Docker + Firecracker MicroVMs + WireGuard NAT Relays |
-| **Payments & Billing** | Stripe SDK (Global), Razorpay SDK (India UPI), 18% GST Engine |
-| **Telemetry & Logs** | `prometheus-client`, Grafana, `structlog` |
-| **Frontend UI** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Lucide Icons |
-| **Cloud Infrastructure** | AWS EKS (Kubernetes 1.29), RDS PostgreSQL 16 (Multi-AZ), ElastiCache Redis 7.2 |
-| **Infrastructure as Code** | Terraform 1.6+ (VPC, EKS, RDS, Redis, S3, ECR) |
-| **Secrets Management** | HashiCorp Vault policy + AWS Secrets Manager + External Secrets Operator (IRSA) |
-| **CDN & Edge Security** | Cloudflare (DNS, WAF, DDoS, edge rate limiting) |
-| **Container Registry** | AWS ECR (scan-on-push enabled for all service images) |
-| **Testing & CI/CD** | `pytest`, `pytest-asyncio`, `httpx`, GitHub Actions (blue-green deploy) |
+| Layer | Technology Used | Language |
+|---|---|---|
+| **Developer CLI** | Cobra, `golang.org/x/term`, `crypto/ssh` | **Go 1.22+** |
+| **Host Agent Daemon** | Firecracker Go SDK, cgo NVML (`libnvidia-ml.so`), LUKS2, `nftables` | **Go 1.22+** |
+| **Gateway Reverse Tunnel** | Goroutine duplex pipes, WebSocket, SSH multiplexer | **Go 1.22+** |
+| **Backend Microservices** | FastAPI (ASGI), Uvicorn, Pydantic V2 | **Python 3.11+** |
+| **ORM & Database** | SQLAlchemy 2.0 (Async Engine) + PostgreSQL 16 + Alembic | Python / SQL |
+| **Caching & Messaging** | Redis 7+ (Session Store, Rate Limiting, Pub/Sub Event Bus) | Redis |
+| **Benchmarking** | PyTorch-free Ctypes CUDA / NVML GEMM & Bandwidth Suite | C / Python / Go |
+| **AI Router & Copilot** | LangChain + OpenAI/Anthropic APIs + WebSockets | Python |
+| **Isolation & Virtualization** | Firecracker MicroVMs + containerd eStargz + LUKS2 | Go / C / Rust |
+| **Payments & Billing** | Stripe SDK (Global), Razorpay SDK (India UPI), Double-Entry Ledger | Python |
+| **Telemetry & Logs** | Prometheus, Grafana, Loki, `structlog` | Polyglot |
+| **Frontend UI** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 | TypeScript |
+| **Cloud Infrastructure** | AWS EKS, RDS PostgreSQL 16 (Multi-AZ), ElastiCache Redis 7.2 | Terraform 1.6+ |
+| **Testing & Verification** | `pytest`, `pytest-asyncio`, `go test` (81 passing tests, 100% pass) | Python / Go |
 
 ---
 

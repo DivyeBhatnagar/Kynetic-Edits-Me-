@@ -12,6 +12,7 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
   - [Plan v9: Host Hardware Armor & Deep Isolation Advancements](../Plans/19_Host_Hardware_Armor_And_Deep_Isolation_Implementation_Plan_v9.md)
   - [Plan v10: Host Hardware Armor, Firmware Defense & Anti-Abuse](../Plans/20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md)
   - [Plan v11: Hardware Enclave, Peripheral Armor & Confidential Compute](../Plans/21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md)
+  - [Plan v12: Silicon Fault Injection, Post-Quantum & Microarchitectural Defenses](../Plans/22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md)
 
 ---
 
@@ -23,13 +24,13 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 +-----------------------------------------------------------------------------------+
 | [Tier 1] Identity & Control Plane: Token Family Rotation, Chained Audit Log       |
 | [Tier 2] Zero Trust & Admissions: 8-Dim PDP, Cosign Image Signature Gate          |
-| [Tier 3] Network Defense: LAN Air-Gap, RFC1918 Block, ISP Anti-DDoS, DoH Guard    |
-| [Tier 4] Kernel & Sandboxing: Kernel Lockdown, eBPF Probes, Shadow Stack, cgroups |
-| [Tier 5] Hardware Armor: IOMMU, NVIDIA CC APEX, AMD SEV-SNP/TDX, VBIOS Lock       |
+| [Tier 3] Network Defense: LAN Air-Gap, RFC1918 Block, ISP Anti-DDoS, DoH, RPKI    |
+| [Tier 4] Kernel & Sandboxing: Kernel Lockdown, eBPF Probes, Shadow Stack, userns  |
+| [Tier 5] Hardware Armor: IOMMU, NVIDIA CC APEX, AMD SEV-SNP/TDX, NVLink, TME     |
 | [Tier 6] Storage Cryptography: LUKS2 Ephemeral Volumes, NVMe Crypto Erase Key Drop|
 | [Tier 7] Platform Integrity: TPM 2.0 PCR Quotes, IMA Secure Boot, Trust Engine    |
 | [Tier 8] Runtime & Incident: Dynamic Risk Bands (0-100), Automated Containment    |
-| [Tier 9] Side-Channel & Physical: SMT Decouple, Rowhammer EDAC, BadUSB, Tamper    |
+| [Tier 9] Post-Quantum & Silicon: ML-KEM/Kyber, ML-DSA, Voltage Fault, L1TF, MDS   |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -50,15 +51,35 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 | **DNS Defense** | Enforced Encrypted DNS & DNS-Tunneling Detection Engine | `backend/host_agent_go/pkg/firewall/doh_tunnel_guard.go` | ✅ 100% Implemented |
 | **JA4+ Fingerprint**| Outbound JA4+ TLS Handshake Fingerprinting & C2 Tool Scorer | `backend/host_agent_go/pkg/firewall/ja4_fingerprint.go` | ✅ 100% Implemented |
 | **MTU Evasion** | Egress MTU Fragment & Covert Channel Filter | `backend/host_agent_go/pkg/firewall/mtu_fragment_filter.go` | ✅ 100% Implemented |
+| **TCP Scrambler** | TCP Initial Sequence Number (ISN) & Timestamp Randomization | `backend/host_agent_go/pkg/firewall/tcp_scrambler.go` | ✅ 100% Implemented |
+| **Rapid Reset** | HTTP/2 & HTTP/3 Rapid Reset (CVE-2023-44487) Mitigation Engine | `backend/host_agent_go/pkg/firewall/rapid_reset_mitigator.go` | ✅ 100% Implemented |
+| **Prompt Sanitizer**| AI Prompt Injection & Adversarial Jailbreak Sanitizer | `backend/host_agent_go/pkg/firewall/prompt_sanitizer.go` | ✅ 100% Implemented |
+| **RPKI Validator** | BGP Hijacking & RPKI Route Origin Validation (ROV) Engine | `backend/host_agent_go/pkg/firewall/rpki_validator.go` | ✅ 100% Implemented |
 | **Kernel Lockdown** | Linux Kernel Lockdown Mode (`confidentiality` / `integrity`) | `backend/host_agent_go/pkg/security/kernel_lockdown.go` | ✅ 100% Implemented |
 | **eBPF Monitoring** | Kernel Tracepoints for Zero-Day Privilege Escalation Syscalls | `backend/host_agent_go/pkg/security/ebpf_probe.go` | ✅ 100% Implemented |
 | **BPF Restrictor** | eBPF JIT Constant Blinding & Unprivileged BPF Syscall Restrictor | `backend/host_agent_go/pkg/security/bpf_restrictor.go` | ✅ 100% Implemented |
 | **Shadow Stack** | Hardware Control Flow Guard & Shadow Stack (Intel CET / ARM BTI) | `backend/host_agent_go/pkg/security/shadow_stack.go` | ✅ 100% Implemented |
+| **Speculation Guard**| Speculative Store Bypass & Spectre v4 Barrier (`PR_SET_SPECULATION_CTRL`) | `backend/host_agent_go/pkg/security/speculation_barrier.go` | ✅ 100% Implemented |
+| **L1TF Scrubber** | L1 Terminal Fault (L1TF / Foreshadow) Cache Invalidation Flush | `backend/host_agent_go/pkg/security/l1tf_scrub.go` | ✅ 100% Implemented |
+| **MDS Buffer Clear**| Microarchitectural Data Sampling (MDS) Buffer Clearing (`VERW`) | `backend/host_agent_go/pkg/security/mds_buffer_clear.go` | ✅ 100% Implemented |
+| **TLB KPTI** | Translation Lookaside Buffer PCID/ASID Strict Isolation & KPTI | `backend/host_agent_go/pkg/security/tlb_kpti.go` | ✅ 100% Implemented |
+| **PQC KEM** | Post-Quantum Hybrid TLS Key Encapsulation (ML-KEM / Kyber-1024) | `backend/host_agent_go/pkg/security/pqc_kem.go` | ✅ 100% Implemented |
+| **PQC Signature** | Post-Quantum Digital Signature Verification (ML-DSA / Dilithium) | `backend/host_agent_go/pkg/security/pqc_sig.go` | ✅ 100% Implemented |
+| **Shamir Secrets** | Threshold Shamir's Secret Sharing (SSS) for Ephemeral Master Keys | `backend/host_agent_go/pkg/security/shamir_secret.go` | ✅ 100% Implemented |
+| **ZKP Inference** | Zero-Knowledge Proof of AI Execution (zk-SNARK Inference Proofs) | `backend/host_agent_go/pkg/security/zkp_inference.go` | ✅ 100% Implemented |
+| **Nested Virt Lock**| Hypervisor Nested Virtualization Lockout (Stripping VMX/SVM) | `backend/host_agent_go/pkg/security/nested_virt_lock.go` | ✅ 100% Implemented |
+| **Host Redactor** | Host Kernel Information Leak & Hardware Serial / UUID Redactor | `backend/host_agent_go/pkg/security/host_redactor.go` | ✅ 100% Implemented |
+| **Userns Dual-Jail**| Dual-Jail User Namespaces (`userns`) with High-Range UID Remap | `backend/host_agent_go/pkg/security/userns_jail.go` | ✅ 100% Implemented |
 | **Module Sign** | Immutable Kernel Module Signature (`module.sig_enforce`) & Driver Guard | `backend/host_agent_go/pkg/security/module_signing.go` | ✅ 100% Implemented |
 | **Resource Ceiling** | cgroups v2 Anti-Fork-Bomb `pids.max` and Memory Bounds | `backend/host_agent_go/pkg/security/cgroup_limits.go` | ✅ 100% Implemented |
 | **PCIe DMA Guard** | IOMMU Group Dedicated PCIe GPU Endpoint Isolation | `backend/host_agent_go/pkg/hardware/iommu.go` | ✅ 100% Implemented |
 | **NVIDIA APEX CC** | NVIDIA Confidential Computing & H100/B200 Enclave Attestation | `backend/host_agent_go/pkg/hardware/nvidia_cc.go` | ✅ 100% Implemented |
 | **CPU Enclave** | AMD SEV-SNP & Intel TDX Enclave Memory Isolation Manager | `backend/host_agent_go/pkg/hardware/sev_tdx.go` | ✅ 100% Implemented |
+| **Voltage Fault** | Voltage Undervolting & Glitch Fault-Injection Detector | `backend/host_agent_go/pkg/hardware/voltage_fault_detector.go` | ✅ 100% Implemented |
+| **NVLink Guard** | Multi-GPU NVLink / NVSwitch Cryptographic Link Isolation | `backend/host_agent_go/pkg/hardware/nvlink_guard.go` | ✅ 100% Implemented |
+| **Memory Encrypt** | Total Memory Encryption (Intel TME-MK / AMD SME) Hardware Enforcer | `backend/host_agent_go/pkg/hardware/tme_sme.go` | ✅ 100% Implemented |
+| **Thermal Dither** | Thermal & Fan PWM Acoustic Side-Channel Dithering | `backend/host_agent_go/pkg/hardware/thermal_dither.go` | ✅ 100% Implemented |
+| **Microcode Lock** | CPU Microcode & Livepatch Cryptographic Verification Guard | `backend/host_agent_go/pkg/hardware/microcode_guard.go` | ✅ 100% Implemented |
 | **SMT Isolation** | SMT / Hyperthreading Decoupling & CPU Cache Partitioning | `backend/host_agent_go/pkg/hardware/core_isolation.go` | ✅ 100% Implemented |
 | **BadUSB Guard** | USB Host Controller Soft-Kill & BadUSB Interceptor | `backend/host_agent_go/pkg/hardware/usb_guard.go` | ✅ 100% Implemented |
 | **Thunderbolt DMA** | Thunderbolt / USB4 PCIe DMA Guard | `backend/host_agent_go/pkg/hardware/thunderbolt_dma.go` | ✅ 100% Implemented |

@@ -328,6 +328,9 @@ Operating in an untrusted environment—where both the **host provider PC** and 
 | [`hardware_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/hardware/hardware_v11_test.go) | Tier 5 & 9: Hardware (Plan v11) | NVIDIA CC, SEV-SNP/TDX, SMT, USB, TB DMA, TLP, Capsule, BMC, GEMM Jitter, Tamper | ✅ PASS |
 | [`security_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/security_v11_test.go) | Tier 4, 7, 9: Security (Plan v11) | Memory poison shield, Cold boot, Shadow stack, BPF restrictor, Register zero, Module sign, Heartbeat | ✅ PASS |
 | [`firewall_v11_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/firewall_v11_test.go) | Tier 3: Firewall (Plan v11) | DoH Tunnel guard, JA4+ fingerprint, MTU fragment filter | ✅ PASS |
+| [`hardware_v12_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/hardware/hardware_v12_test.go) | Tier 5 & 9: Hardware (Plan v12) | Voltage fault injection, NVLink guard, TME/SME, Thermal dither, Microcode guard | ✅ PASS |
+| [`security_v12_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/security_v12_test.go) | Tier 4, 7, 9: Security (Plan v12) | Speculation barrier, L1TF scrub, MDS buffer clear, TLB KPTI, PQC KEM, PQC Sig, Shamir, ZKP, Nested virt, Host redactor, Userns | ✅ PASS |
+| [`firewall_v12_test.go`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/firewall/firewall_v12_test.go) | Tier 3: Firewall (Plan v12) | TCP scrambler, Rapid reset mitigator, Prompt sanitizer, RPKI validator | ✅ PASS |
 
 ---
 
@@ -354,7 +357,12 @@ kynetic-ai/
 │   │   │   ├── uefi_capsule_lock.go      # UEFI / BIOS SPI Flash Capsule Write-Lockdown
 │   │   │   ├── bmc_airgap.go             # Baseboard Management Controller (BMC/IPMI) Air-Gap
 │   │   │   ├── gemm_noise.go             # Constant-Time GPU GEMM & Clock Jitter Noise Injection
-│   │   │   └── chassis_tamper.go         # Chassis Physical Tamper Sensor & Accelerometer Lock
+│   │   │   ├── chassis_tamper.go         # Chassis Physical Tamper Sensor & Accelerometer Lock
+│   │   │   ├── voltage_fault_detector.go # Voltage Undervolting & Glitch Fault-Injection Detector
+│   │   │   ├── nvlink_guard.go           # Multi-GPU NVLink / NVSwitch Cryptographic Isolation
+│   │   │   ├── tme_sme.go                # Total Memory Encryption (Intel TME-MK / AMD SME)
+│   │   │   ├── thermal_dither.go         # Thermal & Fan PWM Acoustic Side-Channel Dithering
+│   │   │   └── microcode_guard.go        # CPU Microcode & Livepatch Cryptographic Guard
 │   │   ├── security/
 │   │   │   ├── ebpf_probe.go             # eBPF Syscall Monitor & Zero-Day Escape Guard
 │   │   │   ├── ksm_shield.go             # Kernel Samepage Merging (KSM) Deduplication Shield
@@ -370,14 +378,29 @@ kynetic-ai/
 │   │   │   ├── bpf_restrictor.go         # eBPF JIT Hardening & BPF Syscall Restrictor
 │   │   │   ├── register_zero.go          # Deterministic Register Zeroing & Memory Residue Wipe
 │   │   │   ├── module_signing.go         # Immutable Kernel Module Signature Enforcement
-│   │   │   └── homomorphic_heartbeat.go  # Homomorphic Micro-Heartbeat & State Consensus
+│   │   │   ├── homomorphic_heartbeat.go  # Homomorphic Micro-Heartbeat & State Consensus
+│   │   │   ├── speculation_barrier.go    # Speculative Store Bypass & Spectre v4 Barrier
+│   │   │   ├── l1tf_scrub.go             # L1 Terminal Fault (L1TF) Cache Invalidation Flush
+│   │   │   ├── mds_buffer_clear.go       # Microarchitectural Data Sampling (MDS) Buffer Clearing
+│   │   │   ├── tlb_kpti.go               # Translation Lookaside Buffer PCID/ASID & KPTI Guard
+│   │   │   ├── pqc_kem.go                # Post-Quantum Hybrid TLS Key Encapsulation (ML-KEM-1024)
+│   │   │   ├── pqc_sig.go                # Post-Quantum Digital Signature Verification (ML-DSA-87)
+│   │   │   ├── shamir_secret.go          # Threshold Shamir's Secret Sharing (SSS) Master Key
+│   │   │   ├── zkp_inference.go          # Zero-Knowledge Proof of AI Execution (zk-SNARK)
+│   │   │   ├── nested_virt_lock.go       # Hypervisor Nested Virtualization Lockout
+│   │   │   ├── host_redactor.go          # Host Kernel Information Leak & Serial Redactor
+│   │   │   └── userns_jail.go            # Dual-Jail User Namespaces (userns) UID Remapping
 │   │   ├── firewall/
 │   │   │   ├── lan_filter.go             # Local LAN Air-Gap & RFC1918 Egress Block
 │   │   │   ├── netns.go                  # Ephemeral Network Namespace Isolation
 │   │   │   ├── isp_guard.go              # Outbound ISP Abuse & Anti-DDoS Traffic Policing
 │   │   │   ├── doh_tunnel_guard.go       # Enforced Encrypted DNS & DNS-Tunneling Detection
 │   │   │   ├── ja4_fingerprint.go        # Outbound JA4+ TLS Fingerprint & Dynamic Anomaly Scorer
-│   │   │   └── mtu_fragment_filter.go    # Egress MTU Fragment & Covert Channel Filter
+│   │   │   ├── mtu_fragment_filter.go    # Egress MTU Fragment & Covert Channel Filter
+│   │   │   ├── tcp_scrambler.go          # TCP ISN & Timestamp Randomization Scrambler
+│   │   │   ├── rapid_reset_mitigator.go  # HTTP/2 & HTTP/3 Rapid Reset (CVE-2023-44487) Mitigator
+│   │   │   ├── prompt_sanitizer.go       # AI Prompt Injection & Adversarial Jailbreak Sanitizer
+│   │   │   └── rpki_validator.go         # BGP Hijacking & RPKI Route Origin Validation
 │   │   └── volume/
 │   │       ├── mount_shield.go           # Host Storage Read-Only Mount Shield
 │   │       └── nvme_crypto_erase.go      # NVMe Controller Cryptographic Key Erase
@@ -404,7 +427,8 @@ kynetic-ai/
     │   ├── 17_Kynetic_AI_Security_Enhancements_Implementation_Plan_v2.md
     │   ├── 19_Host_Hardware_Armor_And_Deep_Isolation_Implementation_Plan_v9.md
     │   ├── 20_Host_Hardware_Armor_And_Firmware_Defense_Implementation_Plan_v10.md
-    │   └── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
+    │   ├── 21_Hardware_Enclave_Peripheral_Armor_And_Confidential_Compute_Implementation_Plan_v11.md
+    │   └── 22_Silicon_Fault_Injection_Post_Quantum_And_Microarchitectural_Armor_Implementation_Plan_v12.md
     └── Security/
         ├── README.md
         └── COMPLETE_SECURITY_ARCHITECTURE.md

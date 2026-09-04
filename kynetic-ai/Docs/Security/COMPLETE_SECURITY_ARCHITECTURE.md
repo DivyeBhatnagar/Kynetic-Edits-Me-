@@ -763,3 +763,76 @@ kynetic-ai/
 ### 22.8 Hardware TPM NVRAM Anti-Rollback Monotonic Counter (`tpm_nvram_counter.go`)
 - **Hardware Monotonic Increment**: Enforces TPM 2.0 NVRAM counter comparisons preventing firmware and agent state downgrades.
 
+---
+
+## 23. Tier 12 — Confidential Hardware Enclave Splicing & GPU Interconnects
+
+### 23.1 AMD SEV-SNP vTOM Hypervisor Splicing Defense (`sev_vtom_guard.go`)
+- **Virtual Top of Memory Enforcer**: Audits guest virtual top of memory (`vTOM`) boundaries, Reverse Map Table (RMP) assignments, and VMSA save area integrity to neutralize hypervisor page remap and splicing attacks.
+
+### 23.2 Intel TDX Live Migration Decryption Shield (`tdx_migration_guard.go`)
+- **TDMM Quote Verification**: Validates pre-copy migration session keys using Intel TDX Migration Module hardware quotes and per-page HMAC authentication tags.
+
+### 23.3 GPU Driver Shadow Page-Table Invalidation Tripwire (`cuda_page_table_tripwire.go`)
+- **VRAM Remap Detection**: Continuously audits guest virtual-to-physical CUDA memory page mappings, tripping immediate execution suspension upon detecting unauthorized host kernel driver VRAM remappings.
+
+### 23.4 RoCEv2 PFC/ECN Priority Pause Flood Filter (`roce_pfc_filter.go`)
+- **Anti-Deadlock Policing**: Inspects RDMA over Converged Ethernet (RoCEv2) priority flow control (PFC) frames, suppressing pause frame storms and malicious ECN packet injections.
+
+### 23.5 InfiniBand / PCIe ATS Spoofing Guard (`ats_spoof_guard.go`)
+- **Address Translation Services Whitelist**: Audits PCIe ATS translation request/response pairs between GPU interconnects and host IOMMUs to defeat peripheral ATS address spoofing.
+
+### 23.6 GPU HBM3e Target Row Refresh (TRR) Monitor (`hbm3e_trr_monitor.go`)
+- **Hardware TRR Pulses**: Monitors High Bandwidth Memory (HBM3e) sub-array activation frequencies and issues targeted TRR pulses to prevent multi-tenant Rowhammer bitflips and localized thermal drift.
+
+---
+
+## 24. Tier 12 — Post-Quantum Double-Ratchet, zk-ML & Ring Signatures
+
+### 24.1 Deterministic Post-Quantum Double-Ratchet Session Engine (`pq_double_ratchet.py`)
+- **Hybrid PQ KDF Ratchet**: Signal-style cryptographic double-ratchet combining ML-KEM-1024 and Curve25519 DH steps per message for continuous forward secrecy and break-in recovery.
+
+### 24.2 TFHE Bootstrapping Circuit Guard (`tfhe_bootstrap_guard.py`)
+- **LWE Noise Budget Tracking**: Monitors ciphertext noise growth across homomorphic additions and multiplications, orchestrating programmable bootstrapping to refresh noise variance.
+
+### 24.3 Zero-Knowledge Machine Learning (zk-ML) Forward Pass Proof Verifier (`zk_ml_verifier.py`)
+- **Polynomial Attention Verification**: Validates GKR and Plonky2 execution proofs for transformer attention layers without requiring model weights disclosure or inference re-execution.
+
+### 24.4 Ephemeral Ring-Signature Anonymous Compute Dispatcher (`ring_signature_dispatcher.py`)
+- **LSAG Key Image Authentication**: Proves membership in a public key ring authorizing GPU compute execution with 100% unlinkable developer anonymity and key image double-spend defense.
+
+---
+
+## 25. Tier 12 — Weight Steganography, Kernel CFI & Memory Keys
+
+### 25.1 Model Weight LSB Steganography Scanner (`weight_steganography_scanner.py`)
+- **Mantissa Bitstream Analysis**: Scans IEEE 754 floating-point least significant bits in `.safetensors` and `.gguf` checkpoints for covert C2 shellcode and exfiltration payloads.
+
+### 25.2 LoRA / Adapter Parameter Spectral Backdoor Filter (`lora_spectral_filter.py`)
+- **SVD Spectral Analysis**: Power iteration on low-rank adapter delta matrices ($\Delta W = B \times A$) detecting extreme rank-1 outlier backdoor eigenvalues.
+
+### 25.3 TPM 2.0 PCR-Bound Rootfs Decryption Key Vault (`tpm_pcr_vault.go`)
+- **Platform-Coupled Decryption**: Cryptographically binds container rootfs AES-256 decryption keys to host TPM PCR0 (Firmware), PCR1 (UEFI Config), and PCR7 (Secure Boot).
+
+### 25.4 CPU Microcode Patch Revocation List (SRL) Hardware Enforcer (`microcode_srl_enforcer.go`)
+- **NVRAM Minimum SRL Enforcer**: Enforces cryptographic minimum microcode revision numbers to prevent microcode rollback attacks.
+
+### 25.5 eBPF-Driven Syscall Forward-Edge Control Flow Integrity (`ebpf_syscall_cfi.go`)
+- **Tracepoint Caller Verification**: Validates return addresses and Instruction Pointers against valid code segments on privileged system call entries.
+
+### 25.6 CPU Memory Protection Keys (MPK / PKU) Intra-Process Partitioning (`pku_mpk_isolation.go`)
+- **Hardware Domain Partitioning**: Uses `WRPKRU` registers to isolate memory domains and cryptographic secrets within the same process address space with zero syscall overhead.
+
+### 25.7 Direct Data I/O (DDIO) Stealth Cache Eviction Shield (`ddio_cache_shield.go`)
+- **L3 Ways Allocation Monitor**: Restricts PCIe DMA direct-to-L3-cache occupancy to defeat cache side-channel attacks on adjacent CPU threads.
+
+### 25.8 Dynamic Kernel Module Loader (DKMS) Cryptographic Hash-Chaining (`dkms_hash_chain.go`)
+- **Tamper-Evident Compilation**: Generates append-only cryptographic hashes for all kernel driver compilation stages.
+
+### 25.9 Out-of-Band Redfish / Serial-over-LAN (SoL) Blackbox Logger (`redfish_blackbox_logger.go`)
+- **Forensic Hardware Telemetry**: Automatically streams pre-crash kernel panics, register dumps, and sensor data via dedicated BMC/SoL channels.
+
+### 25.10 Userspace Seccomp Notification (`SECCOMP_RET_USER_NOTIF`) Sandbox Supervisor (`seccomp_user_notif.go`)
+- **Syscall Virtualization**: Intercepts, deeply inspects, and virtualizes complex syscall arguments (`mount`, `bpf`, `io_uring_setup`) in user space.
+
+

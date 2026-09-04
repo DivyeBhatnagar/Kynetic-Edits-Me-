@@ -15,6 +15,7 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
   - [Plan v13: PCIe Interconnect, Microarchitectural Transient Defense & Differential Privacy](../Plans/23_PCIe_Interconnect_Microarchitectural_Transient_Defense_And_Differential_Privacy_Implementation_Plan_v13.md)
   - [Plan v14: Admin Portal, Control Plane & Treasury Security](../Plans/24_Admin_Portal_Control_Plane_And_Treasury_Security_Implementation_Plan_v14.md)
   - [Plan v15: Cryptoeconomic Proofs, Federated AI Privacy, Byzantine Consensus & Deep Hardware Armor](../Plans/25_Cryptoeconomic_Federated_AI_Byzantine_Consensus_And_Deep_Hardware_Armor_Implementation_Plan_v15.md)
+  - [Plan v16: Post-Quantum Double-Ratchet, zk-ML, Confidential Interconnects & Deep Silicon Armor](../Plans/26_Post_Quantum_Double_Ratchet_zkML_Confidential_Interconnects_And_Deep_Silicon_Implementation_Plan_v16.md)
 
 ---
 
@@ -35,6 +36,7 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 | [Tier 9] Post-Quantum & Silicon: ML-KEM/Kyber, ML-DSA, Downfall, Inception, ZenBleed |
 | [Tier 10] Admin & Treasury Armor: M-of-N Quorum, JIT PAM, DDM, HSM Webhooks, ABAC|
 | [Tier 11] Cryptoeconomic, Byzantine & Deep Silicon: PoUW, SecAgg, BFT, WORM, MSK |
+| [Tier 12] PQ-Ratchet, zk-ML & Silicon CFI: TFHE, RingCT, vTOM, HBM3e, MPK, DKMS   |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -180,6 +182,27 @@ Welcome to the **Kynetic AI Security Documentation Center**. This directory hous
 | **Speculative Fence**| Execution Serialization (`lfence`) & Branch History Desync | `backend/host_agent_go/pkg/security/speculative_fence_desync.go` | ✅ 100% Implemented |
 | **DMA Bounds** | IOMMU Scatter-Gather Physical Address Bounds Enforcer | `backend/host_agent_go/pkg/hardware/dma_bounds_enforcer.go` | ✅ 100% Implemented |
 | **TPM NVRAM Rollback**| Hardware TPM 2.0 NVRAM Monotonic Counter Anti-Rollback | `backend/host_agent_go/pkg/hardware/tpm_nvram_counter.go` | ✅ 100% Implemented |
+| **SEV vTOM Guard** | AMD SEV-SNP Virtual Top of Memory Hypervisor Splicing Defense | `backend/host_agent_go/pkg/hardware/sev_vtom_guard.go` | ✅ 100% Implemented |
+| **TDX Live Migration**| Intel TDX Pre-Copy Migration Decryption Shield & MAC Auth | `backend/host_agent_go/pkg/hardware/tdx_migration_guard.go` | ✅ 100% Implemented |
+| **CUDA Page Tripwire**| GPU Driver Shadow Page Table Invalidation & Remap Tripwire | `backend/host_agent_go/pkg/hardware/cuda_page_table_tripwire.go` | ✅ 100% Implemented |
+| **RoCE PFC Filter** | RoCEv2 Priority Pause Flood & Watermark Deadlock Filter | `backend/host_agent_go/pkg/firewall/roce_pfc_filter.go` | ✅ 100% Implemented |
+| **ATS Spoof Guard** | PCIe / InfiniBand Address Translation Services Spoofing Guard | `backend/host_agent_go/pkg/hardware/ats_spoof_guard.go` | ✅ 100% Implemented |
+| **HBM3e TRR Monitor**| GPU HBM3e Target Row Refresh & Sub-Array Thermal Drift Shield | `backend/host_agent_go/pkg/hardware/hbm3e_trr_monitor.go` | ✅ 100% Implemented |
+| **PQ Double Ratchet**| Post-Quantum Hybrid (ML-KEM-1024 + X25519) Double Ratchet | `backend/libs/advanced_cryptography/pq_double_ratchet.py` | ✅ 100% Implemented |
+| **TFHE Bootstrapping**| Threshold Fully Homomorphic Encryption Noise Budget Guard | `backend/libs/advanced_cryptography/tfhe_bootstrap_guard.py` | ✅ 100% Implemented |
+| **zk-ML Verifier** | Zero-Knowledge Machine Learning Forward Pass Proof Verifier | `backend/libs/advanced_cryptography/zk_ml_verifier.py` | ✅ 100% Implemented |
+| **RingCT Dispatcher**| Linkable Spontaneous Anonymous Group (LSAG) Ring Dispatcher | `backend/libs/advanced_cryptography/ring_signature_dispatcher.py` | ✅ 100% Implemented |
+| **Weight Steganography**| IEEE 754 Floating-Point Mantissa Steganography Scanner | `backend/libs/model_security/weight_steganography_scanner.py` | ✅ 100% Implemented |
+| **LoRA Spectral Filter**| Adapter Parameter SVD Spectral Backdoor Trojan Filter | `backend/libs/model_security/lora_spectral_filter.py` | ✅ 100% Implemented |
+| **TPM PCR Rootfs** | Container Rootfs Decryption Bound to TPM PCR0/1/7 State | `backend/host_agent_go/pkg/hardware/tpm_pcr_vault.go` | ✅ 100% Implemented |
+| **Microcode SRL** | CPU Security Revision Level (SRL) Hardware Enforcer | `backend/host_agent_go/pkg/hardware/microcode_srl_enforcer.go` | ✅ 100% Implemented |
+| **eBPF Syscall CFI**| Forward-Edge Control Flow Integrity on Kernel Entry Tracepoints | `backend/host_agent_go/pkg/security/ebpf_syscall_cfi.go` | ✅ 100% Implemented |
+| **PKU/MPK Sandbox** | Memory Protection Keys (MPK/PKU) Intra-Process Partitioning | `backend/host_agent_go/pkg/security/pku_mpk_isolation.go` | ✅ 100% Implemented |
+| **DDIO Cache Shield**| Direct Data I/O (DDIO) Stealth L3 Cache Eviction Protector | `backend/host_agent_go/pkg/hardware/ddio_cache_shield.go` | ✅ 100% Implemented |
+| **DKMS Hash Chain** | Dynamic Kernel Module Loader Compilation Hash Chain Auditor | `backend/host_agent_go/pkg/security/dkms_hash_chain.go` | ✅ 100% Implemented |
+| **Redfish Blackbox** | Out-of-Band Serial-over-LAN / Redfish Forensic Panic Logger | `backend/host_agent_go/pkg/security/redfish_blackbox_logger.go` | ✅ 100% Implemented |
+| **Seccomp User-Notif**| Userspace Seccomp Notification (`SECCOMP_RET_USER_NOTIF`) Supervisor | `backend/host_agent_go/pkg/security/seccomp_user_notif.go` | ✅ 100% Implemented |
+
 
 ---
 

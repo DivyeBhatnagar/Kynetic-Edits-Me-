@@ -2,9 +2,32 @@
 
 This document details the architectural layout, component interactions, security boundaries, control-plane channels, and data flows of the **Kynetic AI** platform.
 
+> **Architecture Version**: v7.0.0 — Hybrid Go/Python (2026-09-04)
+
+---
+
+## 0. Language Architecture Matrix (Hybrid Go/Python)
+
+Kynetic AI uses a principled hybrid architecture. The language choice is driven by task type:
+
+| Layer | Language | Reasoning |
+|-------|----------|-----------|
+| **CLI** (`cli_go/`) | **Go** | Zero startup (~2 ms), static binary, native PTY SSH |
+| **Host Agent Daemon** (`host_agent_go/`) | **Go** | goroutines, containerd/Firecracker Go SDK, cgo NVML |
+| **Gateway Tunnel Broker** (`gateway_tunnel_go/`) | **Go** | 10K+ concurrent SSH via goroutines |
+| **Provisioning Service** | **Python** | SQLAlchemy ORM, complex state machines |
+| **Marketplace Service** | **Python** | Meilisearch client, AI ranking |
+| **Billing Service** | **Python** | Stripe/Razorpay SDK, GST decimal math |
+| **Auth Service** | **Python** | JWT, OAuth2 Device Grant, Fernet |
+| **Wallet Service** | **Python** | SQLAlchemy double-entry, atomic DB |
+| **Security Service** | **Python** | TPM2/SEV-SNP, eBPF XDP, execution certs |
+
+**gRPC Contract (Go host agent ← Python provisioning service):** `backend/proto/agent_service.proto`
+
 ---
 
 ## 1. High-Level System Architecture
+
 
 ```
                     ┌────────────────────────────────────────────────────────┐

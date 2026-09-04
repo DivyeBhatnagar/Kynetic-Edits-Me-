@@ -11,16 +11,24 @@ Ensure your development machine satisfies the following hardware and software re
 ### Software Requirements
 - **Git** (`>= 2.30`)
 - **Python** (`3.11` or higher) & `pip`
+- **Go** (`1.22+`) — for Go CLI and Go Host Agent daemon
 - **Node.js** (`18.x` or higher) & `npm` / `pnpm`
 - **Docker Engine** & **Docker Compose** (`v2.x+`)
 - **PostgreSQL** (`v15+` — if running natively outside Docker)
 - **Redis** (`v7+` — if running natively outside Docker)
+
+Install Go on macOS:
+```bash
+brew install go
+go version   # Output: go version go1.22+ darwin/arm64
+```
 
 ### System Verification
 ```bash
 python3 --version   # Output: Python 3.11.x or 3.12.x
 node --version      # Output: v18.x.x or v20.x.x
 docker --version    # Output: Docker version 24.x+
+go version          # Output: go version go1.22+
 ```
 
 > **Security & Permissions Note:** For a detailed breakdown of user RBAC scopes, LUKS2 RAM encryption, Seccomp/AppArmor policies, and host system capability bounds, refer to [`PERMISSIONS_AND_SECURITY.md`](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/PERMISSIONS_AND_SECURITY.md).
@@ -129,24 +137,60 @@ python3 -m pytest tests/unit/ tests/integration/ -v
 
 ---
 
-## 7. Host Agent Installation & Footprint Verification (Phases 0–7)
+## 7. Go CLI — Build & Install
 
-Hardware provider nodes run the lightweight Host Agent daemon with **~180 MB – 350 MB static base footprint** (vs old ~3.9 GB baseline):
+The Go CLI replaces the Python Click CLI with a zero-dependency static binary:
 
-### Installing the Host Agent
 ```bash
-# Automated install (selects profile based on GPU presence)
-sudo bash infra/host_install/install_kynetic.sh --profile standard --backend http://localhost:8000
+cd kynetic-ai/cli_go
 
-# For GPU rental nodes:
-sudo bash infra/host_install/install_kynetic.sh --profile gpu
+# Download dependencies
+go mod tidy
+
+# Build (fast: ~3s)
+go build -ldflags="-w -s" -o kynetic .
+
+# Install globally
+sudo mv kynetic /usr/local/bin/
+
+# Test
+kynetic --help
+kynetic version
+kynetic launch --gpu "RTX 4090" --yes
 ```
 
-### Verifying Host Agent Footprint & Health
-```bash
-# Measure current disk usage breakdown
-python3 backend/host_agent/scripts/profile_footprint.py
+---
 
-# Run Phase 7 post-installation verification check
-python3 backend/host_agent/scripts/verify_footprint.py --ci
+## 8. Go Host Agent — Build & Install (Hardware Providers)
+
+Hardware provider nodes now run the Go host agent daemon:
+
+```bash
+cd kynetic-ai/backend/host_agent_go
+
+# Download dependencies
+go mod tidy
+
+# Dev build (no NVML — works on macOS)
+go build -o kynetic-agent ./cmd/agent/
+
+# Production build (Linux + NVIDIA GPU, requires NVML headers)
+CGO_ENABLED=1 go build -tags nvml -ldflags="-w -s" -o kynetic-agent ./cmd/agent/
+
+# Install & enable
+sudo mv kynetic-agent /usr/local/bin/
+sudo systemctl enable --now kynetic-agent
+
+# Health check
+curl http://localhost:8080/healthz
+```
+
+### Footprint Verification
+```bash
+# Measure Go host agent footprint
+ls -lh /usr/local/bin/kynetic-agent   # ~14 MB
+ps aux | grep kynetic-agent            # ~10 MB RSS at idle
+
+# Legacy Python footprint profiler (reference)
+python3 backend/host_agent/scripts/profile_footprint.py
 ```

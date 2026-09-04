@@ -8,33 +8,43 @@ Kynetic AI connects compute hosts (datacenter servers, idle mining rigs, gaming 
 
 ## 🏛️ System Architecture
 
-Kynetic is built on a 5-plane decoupled architecture operating on a **100% Python Native Stack**:
+Kynetic AI uses a **Hybrid Go/Python** architecture — Go for I/O-bound high-concurrency infrastructure, Python for business logic:
 
 ```
 ┌─────────────────┐        ┌──────────────────┐        ┌──────────────────────┐
 │  Web Dashboard  │◄──────►│   Control Plane  │◄──────►│  PostgreSQL 16 DB    │
-│  (Next.js App)  │  REST  │  (FastAPI Async) │  SQL   │  (source of truth)   │
+│  (Next.js App)  │  REST  │  (FastAPI/Python) │  SQL   │  (source of truth)   │
 └─────────────────┘        └────────┬─────────┘        └──────────────────────┘
                                     │
 ┌─────────────────┐        ┌────────▼─────────┐        ┌──────────────────────┐
-│   Kynetic CLI   │◄──────►│   API Gateway    │◄──────►│  Redis 7 Cache /     │
-│  (Python CLI)   │  REST  │   + Auth         │        │  PubSub Event Bus    │
+│  Kynetic CLI    │◄──────►│   API Gateway    │◄──────►│  Redis 7 Cache /     │
+│  [GO BINARY]    │  REST  │   + Auth         │        │  PubSub Event Bus    │
 └────────┬────────┘        └────────┬─────────┘        └──────────────────────┘
          │                          │
-         │ WebSocket Tunnel         │ mTLS Command Channel
+         │ SSH over WireGuard        │ gRPC mTLS (agent_service.proto)
          ▼                          ▼
 ┌─────────────────┐        ┌──────────────────┐
-│  Tunnel Gateway │◄──────►│    Host Agent    │
-│  (Edge Relay)   │ reverse│  (Compute Node)  │
-└─────────────────┘  dial  └──────────────────┘
+│ Tunnel Gateway  │◄──────►│   Host Agent     │
+│  [GO BINARY]    │ gorout. │  [GO BINARY]     │
+│  10K+ conns     │        │  Firecracker/    │
+└─────────────────┘        │  containerd/NVML │
+                           └──────────────────┘
 ```
 
 ### Deployable Planes
-1. **Control Plane** — Asynchronous FastAPI microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`).
+1. **Control Plane** — Asynchronous FastAPI Python microservices (`api_gateway`, `auth_service`, `marketplace_service`, `provisioning_service`, `billing_service`, `ai_router_copilot_service`, `reputation_pricing_service`, `security_service`, `notifications_service`, `monitoring_service`, `host_service`).
 2. **Data Plane** — PostgreSQL (source of truth), Redis (Pub/Sub event bus, rate limiting, session cache, denormalized search index), and Loki (structured log aggregation).
-3. **Edge Plane (Tunnel Gateway)** — NAT-traversing reverse-dial WebSocket relay cluster that terminates developer PTY streams and host connections without open inbound ports on the host.
-4. **Host Plane (Host Agent)** — Ultra-lightweight Cross-Platform Python daemon running on rented compute nodes with **~180–350 MB permanent base footprint (~94% footprint reduction)**. Uses native Ctypes NVML/CUDA driver GEMM benchmarking (zero bundled PyTorch/Redis in host agent binary), minimal Alpine 3.20 MicroVM rootfs (`rootfs-min.ext4` ~45 MB), stripped microVM kernel (`vmlinux-min` ~12 MB), containerd + `stargz-snapshotter` eStargz lazy image pulling (<2s cold start), bounded LRU cache manager, WireGuard relays, and DoD LUKS2 storage shredding.
-5. **Client Plane (CLI)** — 100% Python CLI (`kynetic-cli`) providing an instant developer experience (`login`, `launch`, `connect`, `cp`, `tunnel`, `ssh`, `stop`, `terminate`).
+3. **Edge Plane (Tunnel Gateway)** — **Go static binary** (`backend/services/gateway_tunnel_go/`). Handles 10K+ concurrent SSH PTY sessions via goroutines. Replaces Python asyncssh implementation with ~9× lower latency.
+4. **Host Plane (Host Agent)** — **Go static binary** (`backend/host_agent_go/`, ~14 MB, ~10 MB idle RAM). Uses cgo NVML for GPU benchmarking, Go SDK for Firecracker VMM + containerd, native LUKS2 with `crypto/rand` key zeroing, nftables via netlink, and LRU GC goroutine. Communicates with Python provisioning service via gRPC mTLS (`backend/proto/agent_service.proto`).
+5. **Client Plane (CLI)** — **Go static binary** (`cli_go/`, ~8 MB, ~2 ms startup). Commands: `login`, `launch`, `connect` (native PTY SSH), `instances` (list/stop/terminate/status/logs), `wallet` (balance/transactions), `version`.
+
+### Language Matrix
+| Component | Language | Why |
+|-----------|----------|-----|
+| CLI | **Go** | 2 ms startup, static binary, native PTY |
+| Host Agent | **Go** | goroutines, cgo NVML, Firecracker SDK |
+| Gateway Tunnel | **Go** | 10K+ concurrent SSH goroutines |
+| Provisioning, Auth, Billing, Marketplace, Wallet, Security | **Python** | SQLAlchemy, Stripe SDK, GST math, FastAPI |
 
 ---
 

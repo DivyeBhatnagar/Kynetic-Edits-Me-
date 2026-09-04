@@ -1,6 +1,6 @@
 # Kynetic AI — Implemented Things & Comprehensive Architecture Specification
 
-This document serves as the **Exhaustive Master Technical Specification of Implemented Things** for **Kynetic AI**, combining the complete **33 Original System Phases (Phases 1 – 33)**, the **v6 Production Engineering Specification (Phases A – L)**, and the **v7 Marketplace Payment, Billing, Commission & Payout Architecture Specification (Phases P1 – P7)** across the full-stack architecture (Backend Microservices, Next.js Frontend, 100% Python CLI, Host Agent Daemon, Zero-Trust Security, Dual-Currency Billing, Balanced Double-Entry Financial Ledger, Priority Commission Engine, Payout Engine, and 37-Test Integration Test Suite).
+This document serves as the **Exhaustive Master Technical Specification of Implemented Things** for **Kynetic AI**, combining the complete **33 Original System Phases (Phases 1 – 33)**, the **v6 Production Engineering Specification (Phases A – L)**, the **v7 Marketplace Payment, Billing, Commission & Payout Architecture Specification (Phases P1 – P7)**, and the **v7.0.0 Hybrid Go/Python Migration (Go CLI, Go Host Agent, Go Gateway Tunnel)**.
 
 ---
 
@@ -9,11 +9,68 @@ This document serves as the **Exhaustive Master Technical Specification of Imple
 Kynetic AI is a **Cloud Computer Marketplace** engineered under one non-negotiable principle: *"Does this make the rented machine feel more like the developer's own computer?"*
 
 - **The machine is the product, not a workflow**: No notebooks, no wrapped web forms, no forced workflow. Instant, unmediated Linux shell access (`kynetic connect`).
-- **100% Python Native Stack**: Built entirely in Python using modern async primitives (`FastAPI`, `Click`/`Rich`, `httpx`, `websockets`, `cryptography`, `Pydantic V2`, `SQLAlchemy 2.0 Async`, `Celery`).
-- **NAT-Traversing Tunnel Gateway**: Reverse-dial mTLS gRPC and WebSocket streams eliminate port-forwarding and public IP requirements for hosts. Both CLI and Host Agent dial *outbound* to the Gateway.
+- **Hybrid Go/Python Stack**: Go handles I/O-bound concurrency infrastructure (CLI, Host Agent, Gateway Tunnel). Python handles business logic (billing, auth, marketplace, ORM).
+- **NAT-Traversing Gateway**: Reverse-dial SSH over WireGuard eliminates port-forwarding and public IP requirements for hosts.
 - **Frontend**: Next.js 16.2 (App Router), React 19, Tailwind CSS v4, Zustand, Recharts, Stripe JS, Razorpay Checkout SDK.
 
 ---
+
+## 🦫 PART 0: Hybrid Go/Python Migration (v7.0.0 — 2026-09-04)
+
+### Phase Go-1: Go CLI (`cli_go/`)
+**Replaces**: `cli/kynetic_cli/` (Python Click/Rich)
+
+| File | Description |
+|------|-------------|
+| `cli_go/go.mod` | Go module — cobra, viper, golang.org/x/crypto |
+| `cli_go/main.go` | Entry point (zero deps, ~8 MB static binary) |
+| `cli_go/cmd/root.go` | Cobra root + Viper config (env: `KYNETIC_API_URL`) |
+| `cli_go/cmd/launch.go` | `kynetic launch` — marketplace search + auto-connect |
+| `cli_go/cmd/connect.go` | `kynetic connect` — native PTY SSH (crypto/ssh) |
+| `cli_go/cmd/instances.go` | `kynetic instances` — list/stop/terminate/status/logs |
+| `cli_go/cmd/wallet.go` | `kynetic wallet` — balance + transactions |
+| `cli_go/cmd/auth.go` | `kynetic login` / `logout` / `version` |
+
+**Verified**: `go build` ✅ + `./kynetic --help` + `./kynetic version` smoke tests pass.
+
+### Phase Go-2: Go Host Agent (`backend/host_agent_go/`)
+**Replaces**: `backend/host_agent/` Python PyInstaller bundle
+
+| File | Replaces |
+|------|---------|
+| `cmd/agent/main.go` | `main.py` — gRPC server, signal handling, goroutine lifecycle |
+| `pkg/hardware/detect.go` | `hardware_detect.py` — reads `/proc`, `/sys` natively |
+| `pkg/hardware/gpu_stub.go` | Build stub for non-NVIDIA platforms |
+| `pkg/benchmark/benchmark.go` | `benchmark_runner.py` — orchestrator |
+| `pkg/benchmark/cuda_nvml.go` | ctypes NVML → cgo NVML binding (build tag: `nvml`) |
+| `pkg/benchmark/cuda_nvml_stub.go` | Stub for macOS/CI |
+| `pkg/volume/luks2.go` | `volume_manager.py` — LUKS2 + `crypto/rand` + blkdiscard |
+| `pkg/firecracker/vmm.go` | `firecracker.py` — Firecracker Go SDK |
+| `pkg/firewall/nftables.go` | `network_isolation.py` — nftables via netlink |
+| `pkg/security/profile.go` | `security_profile.py` — Seccomp JSON writer |
+| `pkg/cache/lru_gc.go` | `cache_manager.py` — LRU GC goroutine |
+| `pkg/client/grpc_client.go` | `agent_client.py` — mTLS HTTP + heartbeat goroutine |
+
+### Phase Go-3: Go Gateway Tunnel (`backend/services/gateway_tunnel_go/`)
+**Replaces**: Python asyncssh gateway service
+
+| File | Description |
+|------|-------------|
+| `main.go` | SSH gateway broker — goroutine-per-session, 10K+ concurrent connections |
+| `go.mod` | golang.org/x/crypto, go.uber.org/zap |
+
+### Phase Go-4: Protobuf gRPC Contract (`backend/proto/`)
+
+| File | Description |
+|------|-------------|
+| `agent_service.proto` | Proto v3 — `LaunchInstance`, `TerminateInstance`, `Rebenchmark`, `GetStatus` RPCs |
+
+**Python stubs**: Generate with `python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. agent_service.proto`
+**Go stubs**: Generate with `protoc --go_out=. --go-grpc_out=. agent_service.proto`
+
+---
+
+
 
 ## 📜 PART 1: Core System Architecture & Full-Stack Specification (Phases 1 – 33)
 

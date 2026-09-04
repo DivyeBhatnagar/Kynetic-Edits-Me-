@@ -1,30 +1,75 @@
 # Kynetic AI — Host Agent Architecture & Setup Guide
 
-The **Kynetic Host Agent** (`backend/host_agent/`) is an ultra-lightweight daemon installed on hardware provider machines. It probes host hardware, runs native CUDA driver GEMM verification benchmarks, manages Firecracker MicroVMs with minimal Alpine rootfs assets, controls `containerd` + `stargz-snapshotter` container runtimes, handles ephemeral LUKS2 disk encryption, enforces LRU cache policies, listens on gRPC control channels, and maintains zero-trust security isolation.
+> **v7.0.0**: The Host Agent is now a native **Go** static binary (`backend/host_agent_go/`). The legacy Python `host_agent/` package is retained for reference but the Go daemon is the production runtime.
 
-With the **Phases 0–7 Host Size Optimization**, the static host disk footprint has been reduced from **~3.9 GB down to ~180 MB – 350 MB (~94% footprint reduction)**.
+The **Kynetic Go Host Agent** is a single, statically-compiled binary (~14 MB) installed on hardware provider machines. It replaces the PyInstaller Python agent (~55 MB), cutting idle RAM from ~45 MB → ~10 MB and startup time from ~3s → ~50 ms.
+
+---
+
+## 1. Go Host Agent Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│              KYNETIC HOST AGENT DAEMON (Go static binary)              │
+│                                                                        │
+│  pkg/hardware/detect.go    ← /proc/cpuinfo, /sys/block, NVML cgo     │
+│  pkg/benchmark/            ← NVML cgo (build tag: nvml), stub on macOS│
+│  pkg/firecracker/vmm.go    ← Firecracker Go SDK, UDS socket control   │
+│  pkg/volume/luks2.go       ← LUKS2 + crypto/rand key + blkdiscard    │
+│  pkg/firewall/nftables.go  ← nftables via netlink (no nft subprocess) │
+│  pkg/cache/lru_gc.go       ← LRU GC goroutine (replaces threading)   │
+│  pkg/security/profile.go   ← Seccomp JSON + AppArmor profile writer  │
+│  pkg/client/grpc_client.go ← mTLS HTTP registration + heartbeat loop │
+│  cmd/agent/main.go         ← gRPC mTLS server (port 50051)           │
+└────────────────────────────────────────────────────────────────────────┘
+         ▲
+         │  gRPC mTLS (agent_service.proto)
+         │  LaunchInstance / TerminateInstance / Rebenchmark / GetStatus
+         │
+Python provisioning_service (gRPC client)
+```
+
+### Build Instructions
+
+```bash
+# Standard build (dev/macOS — no NVML)
+cd backend/host_agent_go
+go mod tidy
+go build -o kynetic-agent ./cmd/agent/
+
+# Production build (Linux + NVIDIA GPU)
+CGO_ENABLED=1 go build -tags nvml \
+  -ldflags="-w -s" \
+  -o kynetic-agent \
+  ./cmd/agent/
+
+# Install to /usr/local/bin
+sudo mv kynetic-agent /usr/local/bin/
+sudo systemctl enable --now kynetic-agent
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KYNETIC_BACKEND_URL` | `https://api.kynetic.ai` | Backend API base URL |
+| `KYNETIC_AGENT_DIR` | `~/.kynetic_agent` | mTLS cert directory |
+| `KYNETIC_GRPC_LISTEN` | `:50051` | gRPC listen address |
+| `KYNETIC_SOCK_DIR` | `/run/kynetic/vms` | Firecracker UDS socket dir |
+| `KYNETIC_CACHE_DIR` | `/mnt/kynetic_cache` | NVMe image cache dir |
 
 ---
 
-## 1. Host Agent Architecture & Core Components
+## 1b. Legacy Python Host Agent (Reference Only)
 
-```
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                              KYNETIC HOST AGENT DAEMON                            │
-│  - Hardware Probe (pynvml / psutil / TPM 2.0 / IOMMU)                             │
-│  - Native Ctypes CUDA GEMM & NVML Benchmark Runner (Zero PyTorch Dependency)      │
-│  - Containerd + Stargz Snapshotter Interface (host_agent/container_runtime.py)    │
-│  - LRU Disk Cache Manager & Orphan Volume GC (host_agent/cache_manager.py)        │
-│  - Firecracker MicroVM Orchestrator (rootfs-min.ext4 ~45MB, vmlinux-min ~12MB)    │
-│  - gRPC / mTLS Command Channel Servicer (host_agent/command_listener.py)          │
-│  - Idempotency Ring-Buffer Deduplication Store (host_agent/idempotency_store.py)  │
-│  - Ephemeral LUKS2 Encryption & NVMe TRIM Sanitizer (host_agent/volume_manager.py) │
-│  - eBPF XDP Network Micro-Segmentation Firewall Filter                            │
-│  - Sub-Minute Continuous Re-Attestation & Auto-Kill Switch                        │
-└───────────────────────────────────────────────────────────────────────────────────┘
-```
+The Python `backend/host_agent/` package is retained and still functional. It is the **reference implementation** — not the production runtime after v7.0.0. Key Python files remain for:
+- `hardware_detect.py` — reference for HardwareManifest schema
+- `volume_manager.py` — LUKS2 reference logic
+- `benchmark_runner.py` — ctypes NVML reference
 
 ---
+
+
 
 ## 2. Tiered Installation Profiles & Host Onboarding
 

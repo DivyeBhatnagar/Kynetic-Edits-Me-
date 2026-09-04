@@ -1,0 +1,135 @@
+// Kynetic AI — Host Agent gRPC Service Contract
+//
+// This protobuf defines the interface between:
+//   - CLIENT: Python provisioning_service (sends commands)
+//   - SERVER: Go host_agent_daemon (executes commands)
+//
+// Transport: gRPC over mTLS (mutual TLS) on port 50051
+//
+// Generate Go stubs:  protoc --go_out=. --go-grpc_out=. agent_service.proto
+// Generate Python stubs: python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. agent_service.proto
+
+syntax = "proto3";
+package kynetic.agent.v1;
+option go_package = "github.com/kynetic-ai/host-agent/pkg/proto;proto";
+
+// ─────────────────────────────────────────────
+// Core message types
+// ─────────────────────────────────────────────
+
+message HardwareSpec {
+  string cpu_model     = 1;
+  int32  cpu_cores     = 2;
+  int32  cpu_threads   = 3;
+  double ram_gb        = 4;
+  double disk_gb       = 5;
+  string disk_type     = 6;  // "nvme" | "ssd" | "hdd"
+  repeated GPUSpec gpus = 7;
+  string os_type       = 8;  // "linux" | "macos"
+}
+
+message GPUSpec {
+  string gpu_model     = 1;
+  double vram_gb       = 2;
+  string driver_version = 3;
+  string cuda_version  = 4;
+  double temperature_c = 5;
+  double power_draw_w  = 6;
+}
+
+message BenchmarkResult {
+  string benchmark_type = 1;  // "cuda_gemm_fp16" | "nvml_vram"
+  double score          = 2;
+  string units          = 3;
+  int32  gpu_index      = 4;
+  bool   passed         = 5;
+}
+
+// ─────────────────────────────────────────────
+// LaunchInstance RPC
+// ─────────────────────────────────────────────
+
+message LaunchInstanceRequest {
+  string instance_id    = 1;
+  string image_ref      = 2;  // Docker image or Firecracker rootfs tag
+  int32  vcpus          = 3;
+  int64  memory_mb      = 4;
+  int32  gpu_count      = 5;
+  int32  disk_gb        = 6;
+  repeated string env   = 7;  // KEY=VALUE pairs
+  string runtime        = 8;  // "firecracker" | "containerd-runc"
+  string user_pub_key   = 9;  // SSH public key to inject into MicroVM
+}
+
+message LaunchInstanceResponse {
+  string instance_id      = 1;
+  bool   success          = 2;
+  string error_message    = 3;
+  string ssh_host         = 4;
+  int32  ssh_port         = 5;
+  string wireguard_ip     = 6;
+  int64  started_at_unix  = 7;
+}
+
+// ─────────────────────────────────────────────
+// TerminateInstance RPC
+// ─────────────────────────────────────────────
+
+message TerminateInstanceRequest {
+  string instance_id           = 1;
+  bool   force                 = 2;  // Skip graceful shutdown if true
+}
+
+message TerminateInstanceResponse {
+  string instance_id           = 1;
+  bool   success               = 2;
+  string deletion_certificate  = 3;  // SHA-256 of zeroed block device after blkdiscard
+  string error_message         = 4;
+}
+
+// ─────────────────────────────────────────────
+// Rebenchmark RPC
+// ─────────────────────────────────────────────
+
+message RebenchmarkRequest {
+  repeated string benchmark_types = 1; // empty = run all
+}
+
+message RebenchmarkResponse {
+  repeated BenchmarkResult results = 1;
+  bool   success                   = 2;
+  string error_message             = 3;
+}
+
+// ─────────────────────────────────────────────
+// GetStatus RPC
+// ─────────────────────────────────────────────
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  HardwareSpec hardware          = 1;
+  repeated string active_instances = 2;
+  double cpu_util_pct            = 3;
+  double ram_used_gb             = 4;
+  string agent_version           = 5;
+  int64  uptime_seconds          = 6;
+}
+
+// ─────────────────────────────────────────────
+// HostAgentService — main service definition
+// ─────────────────────────────────────────────
+
+service HostAgentService {
+  // Launch a new MicroVM or container for a paying tenant
+  rpc LaunchInstance (LaunchInstanceRequest)   returns (LaunchInstanceResponse);
+
+  // Securely terminate a MicroVM, zero disks, and return deletion receipt
+  rpc TerminateInstance (TerminateInstanceRequest) returns (TerminateInstanceResponse);
+
+  // Re-run GPU benchmarks (called after driver upgrade or periodic audit)
+  rpc Rebenchmark (RebenchmarkRequest)         returns (RebenchmarkResponse);
+
+  // Retrieve host hardware state and active instance list
+  rpc GetStatus (GetStatusRequest)             returns (GetStatusResponse);
+}

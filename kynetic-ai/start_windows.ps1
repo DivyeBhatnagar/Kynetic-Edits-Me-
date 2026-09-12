@@ -26,33 +26,82 @@ function Show-Banner {
 }
 
 function Start-DockerStack {
+    # Check if Docker CLI is installed and engine is reachable
+    $dockerInstalled = $false
+    try {
+        $dockerCheck = docker --version 2>&1
+        if ($LASTEXITCODE -eq 0 -or $dockerCheck -like "*Docker version*") {
+            $dockerInstalled = $true
+        }
+    } catch {
+        $dockerInstalled = $false
+    }
+
+    if (-not $dockerInstalled) {
+        Write-Host "`n[!] Docker is NOT installed on this machine." -ForegroundColor Red
+        Write-Host "    No problem! Kynetic AI can run 100% natively on Windows without Docker." -ForegroundColor Yellow
+        Write-Host "    Switching automatically to Native Windows Mode...`n" -ForegroundColor Green
+        Start-NativeStack
+        return
+    }
+
+    # Verify if Docker daemon is running
+    try {
+        docker info 2>&1 | Out-Null
+    } catch {
+        Write-Host "`n[!] Docker Desktop is installed but the Docker daemon is not running." -ForegroundColor Yellow
+        Write-Host "    Please start Docker Desktop, or press ENTER to run in Native Windows Mode (No Docker)." -ForegroundColor DarkYellow
+        $fallback = Read-Host "Run Native Mode without Docker? (Y/n)"
+        if ($fallback -ne "n" -and $fallback -ne "N") {
+            Start-NativeStack
+            return
+        }
+    }
+
     Write-Host "`n[*] Starting Kynetic AI via Docker Compose..." -ForegroundColor Yellow
     docker compose up --build
 }
 
 function Start-NativeStack {
-    Write-Host "`n[*] Starting Kynetic AI Native Stack (Gateway, Services, Frontend)..." -ForegroundColor Yellow
+    Write-Host "`n==========================================================" -ForegroundColor Cyan
+    Write-Host "   [*] STARTING KYNETIC AI NATIVE STACK (NO DOCKER)      " -ForegroundColor Green
+    Write-Host "==========================================================" -ForegroundColor Cyan
     
     $venvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
     if (-not (Test-Path $venvPython)) {
-        $venvPython = "python"
+        Write-Host "  [.venv] Python virtual environment not found. Running setup..." -ForegroundColor Gray
+        & "$ScriptDir\setup_windows.ps1" -SkipGoBuild
+        $venvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+        if (-not (Test-Path $venvPython)) {
+            $venvPython = "python"
+        }
     }
 
     # Set PYTHONPATH
     $env:PYTHONPATH = "$ScriptDir\backend;$ScriptDir"
 
-    Write-Host "  [1/2] Launching API Gateway (http://localhost:8000)..." -ForegroundColor Cyan
+    Write-Host "  [1/4] Launching API Gateway (http://localhost:8000)..." -ForegroundColor Cyan
     Start-Process -FilePath $venvPython -ArgumentList "-m uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload" -WorkingDirectory "$ScriptDir\backend" -WindowStyle Normal
 
-    Write-Host "  [2/2] Launching Next.js Frontend (http://localhost:3000)..." -ForegroundColor Cyan
+    Write-Host "  [2/4] Launching Auth Service (http://localhost:8001)..." -ForegroundColor Cyan
+    Start-Process -FilePath $venvPython -ArgumentList "-m uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload" -WorkingDirectory "$ScriptDir\backend" -WindowStyle Normal
+
+    Write-Host "  [3/4] Launching Marketplace Service (http://localhost:8003)..." -ForegroundColor Cyan
+    Start-Process -FilePath $venvPython -ArgumentList "-m uvicorn services.marketplace_service.main:app --host 0.0.0.0 --port 8003 --reload" -WorkingDirectory "$ScriptDir\backend" -WindowStyle Normal
+
+    Write-Host "  [4/4] Launching Next.js Frontend (http://localhost:3000)..." -ForegroundColor Cyan
     $frontDir = Join-Path $ScriptDir "frontend"
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $frontDir -WindowStyle Normal
 
-    Write-Host "`n[+] Services started successfully!" -ForegroundColor Green
-    Write-Host "  - Next.js Web UI:   http://localhost:3000" -ForegroundColor White
-    Write-Host "  - API Gateway:      http://localhost:8000" -ForegroundColor White
-    Write-Host "  - Swagger Docs:     http://localhost:8000/docs" -ForegroundColor White
-    Write-Host "`nTo stop all processes, run: .\stop_windows.ps1" -ForegroundColor Yellow
+    Write-Host "`n==========================================================" -ForegroundColor Green
+    Write-Host "      [+] ALL NATIVE SERVICES STARTED SUCCESSFULLY!      " -ForegroundColor Green
+    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host "  🌐 Next.js Web UI:       http://localhost:3000" -ForegroundColor White
+    Write-Host "  🛡️ API Gateway:          http://localhost:8000" -ForegroundColor White
+    Write-Host "  📖 Interactive Docs:     http://localhost:8000/docs" -ForegroundColor White
+    Write-Host "  🔐 Auth Service API:     http://localhost:8001" -ForegroundColor White
+    Write-Host "  🛒 Marketplace Service:  http://localhost:8003" -ForegroundColor White
+    Write-Host "`n💡 To stop all native services at once, run: .\stop_windows.ps1" -ForegroundColor Yellow
 }
 
 function Start-HostAgent {

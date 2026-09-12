@@ -95,28 +95,111 @@ docker compose down
 
 ---
 
-### Method 2: Native Windows Stack (No Docker Required)
+### Method 2: 💻 100% Native Windows Stack (When Docker is NOT Installed)
 
-If you prefer to run services natively without Docker:
+If you **do not have Docker installed** (or do not want to use Docker Desktop), you can run Kynetic AI completely natively on Windows using Python, Node.js, and the pre-compiled Go executables.
+
+#### 📦 1. Fast Tool Installation via Windows Package Manager (`winget`)
+Open **PowerShell as Administrator** and install Python and Node.js with one command (if not already installed):
 
 ```powershell
-# Launch the interactive menu or run directly in Native mode:
+# Install Python 3.11
+winget install Python.Python.3.11 --silent
+
+# Install Node.js LTS (includes npm)
+winget install OpenJS.NodeJS.LTS --silent
+
+# (Optional) Install PostgreSQL for Windows natively
+winget install PostgreSQL.PostgreSQL --silent
+
+# (Optional) Install Redis for Windows (Memurai)
+winget install Memurai.Memurai --silent
+```
+*Note: After installing, close and reopen your PowerShell window so your system `PATH` is refreshed.*
+
+---
+
+#### 🛠️ 2. Run the 1-Click Automated Setup Wizard
+In the `kynetic-ai` folder, run:
+
+```powershell
+# Enable PowerShell scripts (one-time setup)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Run the automated setup wizard (creates .venv, installs Python & npm dependencies, builds kynetic.exe)
+.\setup_windows.ps1
+```
+
+---
+
+#### 🚀 3. Start the Native Application Stack
+
+##### Option A: 1-Click PowerShell Launch
+```powershell
 .\start_windows.ps1 -Mode Native
 ```
 
-Or using standard **Windows Command Prompt (cmd.exe)**:
+##### Option B: 1-Click Command Prompt (cmd.exe) Launch
+Double-click `start_windows.bat` or run:
 ```cmd
 start_windows.bat
 ```
+*(Select **Option 2** for Native Dev Stack)*
 
-This starts:
-1. **API Gateway** on `http://localhost:8000` (with hot-reload)
-2. **Next.js Frontend** on `http://localhost:3000`
+---
 
-To stop all native processes:
+#### 🖥️ 4. What Gets Started (Native Windows Services):
+The launcher automatically initializes:
+1. **API Gateway** (`http://localhost:8000`)
+2. **Auth Service** (`http://localhost:8001`)
+3. **Marketplace Service** (`http://localhost:8003`)
+4. **Next.js Web Portal** (`http://localhost:3000`)
+
+#### 🌐 Accessing the Native Web Application:
+- **Next.js Developer Portal**: Open your browser at [http://localhost:3000](http://localhost:3000)
+- **API Gateway Root**: [http://localhost:8000](http://localhost:8000)
+- **Interactive Swagger OpenAPI Explorer**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+#### 🔧 5. Manual Step-by-Step Execution (For Debugging / Individual Terminals)
+If you prefer to start each service manually in separate terminal windows:
+
+**Terminal 1 — API Gateway**:
+```powershell
+# In PowerShell:
+$env:PYTHONPATH = "backend;."
+.\.venv\Scripts\python.exe -m uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Terminal 2 — Auth Service**:
+```powershell
+# In PowerShell:
+$env:PYTHONPATH = "backend;."
+.\.venv\Scripts\python.exe -m uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+**Terminal 3 — Marketplace Service**:
+```powershell
+# In PowerShell:
+$env:PYTHONPATH = "backend;."
+.\.venv\Scripts\python.exe -m uvicorn services.marketplace_service.main:app --host 0.0.0.0 --port 8003 --reload
+```
+
+**Terminal 4 — Next.js Frontend Web UI**:
+```powershell
+cd frontend
+npm run dev
+```
+
+---
+
+#### 🛑 6. Stopping All Native Services
+To cleanly terminate all running backend and frontend processes:
 ```powershell
 .\stop_windows.ps1
 ```
+*(or run `stop_windows.bat` in CMD)*
 
 ---
 

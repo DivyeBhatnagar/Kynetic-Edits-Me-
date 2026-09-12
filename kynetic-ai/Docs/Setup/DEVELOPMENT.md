@@ -157,18 +157,34 @@ docker-compose logs -f wallet_billing_service
 
 Access ports:
 - **API Gateway**: `http://localhost:8000` (OpenAPI Docs: `http://localhost:8000/docs`)
-- **Frontend App**: `http://localhost:3000` or `http://localhost:3001`
+- **Frontend App**: `http://localhost:3000`
 - **Prometheus UI**: `http://localhost:9090`
-- **Grafana UI**: `http://localhost:3000` (admin/admin, if monitoring compose is up)
 
 To shut down containers:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ---
 
-### Option B: Native Microservice Execution (Fast Local Reload)
+### Option B: Windows 10/11 1-Click Native Execution (No Docker Needed)
+
+On Windows machines without Docker Desktop installed:
+```powershell
+# 1. Automatic Setup & Build (PowerShell)
+.\setup_windows.ps1
+
+# 2. Launch Native Stack (Gateway, Auth, Marketplace, and Next.js Frontend)
+.\start_windows.ps1 -Mode Native
+
+# Or run start_windows.bat directly from Command Prompt
+```
+To stop all native processes: `.\stop_windows.ps1`  
+👉 *Refer to [WINDOWS_SETUP_AND_RUN_GUIDE.md](WINDOWS_SETUP_AND_RUN_GUIDE.md) for full details.*
+
+---
+
+### Option C: Native Microservice Execution (macOS / Linux Fast Local Reload)
 
 If you are developing a specific microservice and want instantaneous live reload on file save without waiting for Docker builds:
 

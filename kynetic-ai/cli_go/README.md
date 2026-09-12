@@ -33,8 +33,15 @@ go build -ldflags="-s -w" -o kynetic .
 
 ### 2. Install to System Path
 ```bash
+# macOS / Linux:
 sudo mv kynetic /usr/local/bin/
 kynetic version
+
+# Windows (PowerShell as Administrator):
+# Compile directly:
+go build -o kynetic.exe .
+# Add to User PATH or move to C:\Windows\System32
+.\kynetic.exe version
 ```
 
 ### 3. Cross-Compilation for Distribution

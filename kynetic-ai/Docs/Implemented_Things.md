@@ -696,6 +696,24 @@ Implemented in Python under `backend/libs/advanced_cryptography/` and `backend/l
 19. **Out-of-Band Redfish / Serial-over-LAN (SoL) Forensic Blackbox Logger ([redfish_blackbox_logger.go](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/redfish_blackbox_logger.go))**: Captures pre-crash kernel panics, register dumps, and hardware sensor telemetry via dedicated BMC/SoL channels before host memory is wiped.
 20. **Userspace Seccomp Notification (`SECCOMP_RET_USER_NOTIF`) Sandbox Supervisor ([seccomp_user_notif.go](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/seccomp_user_notif.go))**: Intercepts, inspects, and virtualizes complex syscall arguments in user space.
 
+---
+
+## 🪟 PART 14: Cross-Platform Windows Enablement, Native Automation Scripts & No-Docker Operating Architecture
+
+Implemented across the project root, build system, and Go daemons:
+1. **Cross-Platform Host Agent Compilation ([platform_windows.go](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/backend/host_agent_go/pkg/security/platform_windows.go))**: Platform-specific build tags (`//go:build windows` and `//go:build !windows`) providing Windows file descriptor handle closing (`closeFD`) and physical memory locking fallbacks (`lockMemory`) allowing `kynetic-agent.exe` to compile with zero errors.
+2. **Native Go CLI Windows Distribution ([cli_go/](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/cli_go/))**: Standalone static `kynetic.exe` binary with native Windows console raw mode terminal streaming and instant ~2ms execution time.
+3. **Automated 1-Click Windows Setup Wizard ([setup_windows.ps1](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/setup_windows.ps1))**: PowerShell script automating prerequisite checks (Python, Node, Go, Docker), `.venv` virtual environment configuration, pip dependency installations, frontend `npm install`, and binary compilation.
+4. **Master Windows Interactive Launcher ([start_windows.ps1](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/start_windows.ps1) & [start_windows.bat](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/start_windows.bat))**: Multi-mode launcher supporting:
+   - Mode 1: Full Docker Compose multi-service stack.
+   - Mode 2: 100% Native Windows execution (FastAPI API Gateway + Next.js UI) without Docker requirement.
+   - Mode 3: Host Agent daemon execution.
+   - Mode 4: Verification test suite runner.
+5. **Clean Windows Service Shutdown Script ([stop_windows.ps1](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/stop_windows.ps1) & [stop_windows.bat](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/stop_windows.bat))**: Clean termination of active background uvicorn, node, and agent processes on Windows.
+6. **Master Root Containerization ([docker-compose.yml](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/docker-compose.yml) & [frontend/Dockerfile](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/frontend/Dockerfile))**: Master root Docker compose bundle orchestrating all 14 FastAPI backend microservices, PostgreSQL 16, Redis 7, Celery workers, and the Next.js frontend on port 3000.
+7. **Exhaustive Windows Operating Manual ([WINDOWS_SETUP_AND_RUN_GUIDE.md](file:///Users/divyebhatnagar/Desktop/KyneticSoftware/kynetic-ai/Docs/Setup/WINDOWS_SETUP_AND_RUN_GUIDE.md))**: Complete guide detailing `winget` 1-command tool installation, No-Docker terminal-by-terminal commands, Docker Desktop workflows, and WSL2 NVIDIA GPU compute host pass-through.
+
+
 
 
 

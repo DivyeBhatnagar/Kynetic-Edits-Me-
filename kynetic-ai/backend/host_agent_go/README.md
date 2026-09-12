@@ -56,8 +56,18 @@ For deploying to Ubuntu 22.04/24.04 compute nodes with CUDA and NVML:
 
 ```bash
 cd backend/host_agent_go
-CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o kynetic-host-agent ./cmd/daemon
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o kynetic-host-agent ./cmd/agent
 ```
+
+### 3. Windows Native Build (Development / Testing)
+For running natively on Windows 10/11 with simulated hardware fallbacks:
+
+```powershell
+cd backend\host_agent_go
+go build -o kynetic-agent.exe ./cmd/agent
+.\kynetic-agent.exe
+```
+*(For production compute nodes on Windows, WSL2 with NVIDIA CUDA pass-through is recommended. See [WINDOWS_SETUP_AND_RUN_GUIDE.md](../../Docs/Setup/WINDOWS_SETUP_AND_RUN_GUIDE.md))*
 
 ---
 

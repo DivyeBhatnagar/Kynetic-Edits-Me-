@@ -12,8 +12,9 @@ Welcome to the comprehensive documentation repository for Kynetic AI.
 - **[`CONTAINER_IMPLEMENTATION_AND_ARCHITECTURE.md`](CONTAINER_IMPLEMENTATION_AND_ARCHITECTURE.md)**: Deep dive into Firecracker microVMs, eStargz lazy image pulling, containerd snapshotters, and LUKS2 storage encryption.
 
 ### 🛠️ Setup & Operations (`Docs/Setup/`)
+- **[`Docs/Setup/WINDOWS_SETUP_AND_RUN_GUIDE.md`](Setup/WINDOWS_SETUP_AND_RUN_GUIDE.md)**: Official Windows Operating Guide (1-Click PowerShell Setup, 100% Native No-Docker Execution, Docker Desktop, and WSL2 GPU compute nodes).
 - **[`Docs/Setup/ARCHITECTURE.md`](Setup/ARCHITECTURE.md)**: Hybrid Go/Python system architecture specification, component boundaries, and communication protocols.
-- **[`Docs/Setup/SETUP.md`](Setup/SETUP.md)**: Complete local development and staging deployment instructions.
+- **[`Docs/Setup/SETUP.md`](Setup/SETUP.md)**: Complete local development and staging deployment instructions across macOS, Linux, and Windows.
 - **[`Docs/Setup/HOST_AGENT.md`](Setup/HOST_AGENT.md)**: Host node installation, Firecracker dependencies, cgo NVML configuration, and systemd daemon management.
 - **[`Docs/Setup/CHANGELOG.md`](Setup/CHANGELOG.md)**: Historical release notes and version history.
 

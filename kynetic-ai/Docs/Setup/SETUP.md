@@ -87,38 +87,52 @@ npm install
 
 ## 5. Running the Application Stack
 
-### Option A: Running with Docker Compose (Recommended — All 11 Services)
+### Option A: Running with Docker Compose (All Services + Web UI)
 
 ```bash
 cd kynetic-ai
 
-# Build and start all microservices, PostgreSQL, and Redis in background
-docker-compose up --build -d
-
-# Verify all containers are running cleanly
-docker-compose ps
-
-# Apply database migrations
-docker-compose exec auth_service alembic upgrade head
+# Build and start all microservices, PostgreSQL, Redis, and Next.js frontend
+docker compose up --build
 ```
 
 The services will be accessible at:
-- **API Gateway**: `http://localhost:8000`
 - **Developer Web Portal**: `http://localhost:3000`
-- **Admin Operations Console**: `http://localhost:3001`
-- **Prometheus Monitoring**: `http://localhost:9090`
-- **Grafana Dashboards**: `http://localhost:3002`
+- **API Gateway**: `http://localhost:8000`
+- **Interactive Swagger Docs**: `http://localhost:8000/docs`
+- **Auth Service**: `http://localhost:8001`
+- **Marketplace Service**: `http://localhost:8003`
 
-### Option B: Running Individual Services Natively
+---
+
+### Option B: Running on Windows Natively (1-Click & No Docker Required)
+
+On Windows 10/11:
+```powershell
+# 1. Run automated setup wizard (PowerShell as Administrator)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\setup_windows.ps1
+
+# 2. Launch native stack (No Docker required)
+.\start_windows.ps1 -Mode Native
+
+# Or double-click start_windows.bat in Windows Command Prompt
+```
+👉 *See the exhaustive [Windows Installation & Execution Guide](WINDOWS_SETUP_AND_RUN_GUIDE.md) for winget one-liners and WSL2 GPU compute host instructions.*
+
+---
+
+### Option C: Running Individual Services Natively (macOS / Linux)
 
 ```bash
-# Terminal 1: Auth Service
-cd kynetic-ai/services/auth_service
-python -m uvicorn app:app --port 8001 --reload
+# Terminal 1: API Gateway
+PYTHONPATH=backend:. python3 -m uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Terminal 2: Provisioning Service
-cd kynetic-ai/services/provisioning_service
-python -m uvicorn app:app --port 8003 --reload
+# Terminal 2: Auth Service
+PYTHONPATH=backend:. python3 -m uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Terminal 3: Next.js Frontend
+cd frontend && npm run dev
 ```
 
 ---

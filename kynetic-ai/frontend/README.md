@@ -189,11 +189,24 @@ NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...
 
 ### 3. Launch Development Server
 ```bash
+# macOS / Linux:
 npm run dev
+
+# Windows (PowerShell or CMD):
+npm run dev
+
+# Or 1-click launch full native stack from project root:
+.\start_windows.ps1 -Mode Native
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Production Build
+### 4. Running with Docker
+From the project root:
+```bash
+docker compose up --build frontend
+```
+
+### 5. Production Build
 ```bash
 # Type check and build production bundle
 npm run build

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"syscall"
 
 	"go.uber.org/zap"
 )
@@ -109,7 +108,7 @@ func (s *MemFDSealer) CleanupSealedBuffer(name string) error {
 	defer s.mu.Unlock()
 
 	if obj, exists := s.sealed[name]; exists {
-		_ = syscall.Close(obj.FD)
+		_ = closeFD(obj.FD)
 		delete(s.sealed, name)
 	}
 	return nil

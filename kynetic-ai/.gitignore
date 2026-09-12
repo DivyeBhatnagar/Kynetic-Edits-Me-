@@ -53,3 +53,10 @@ out/
 # ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 logs/
+
+# ── Compiled Binaries ────────────────────────────────────────────────────────
+*.exe
+kynetic
+kynetic-agent
+backend/host_agent_go/kynetic-agent.exe
+

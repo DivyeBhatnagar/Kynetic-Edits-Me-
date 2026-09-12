@@ -1,0 +1,645 @@
+version: "3.9"
+
+# ── Kynetic AI — Local Development Docker Compose (Phase 12 — COMPLETE STACK)
+# Infrastructure: PostgreSQL, Redis
+# Services: API Gateway, Auth, Host, Marketplace, Wallet/Billing, Provisioning,
+#           Security, AI Router/Copilot, Reputation/Pricing, Notifications, Monitoring
+# Workers: Celery workers + Beat scheduler for all services
+#
+# Usage:
+#   docker-compose up --build                     # Start full stack
+#   docker-compose up auth_service wallet_billing_service  # Start specific services
+#   docker-compose --profile migrate up migrate   # Run DB migrations
+#   docker-compose exec auth_service pytest       # Run tests
+#   docker-compose logs -f ai_router_service      # Tail logs for a service
+
+services:
+
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kynetic
+      POSTGRES_PASSWORD: kynetic
+      POSTGRES_DB: kynetic
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kynetic -d kynetic"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API Gateway (port 8000) ─────────────────────────────────────────────────
+  api_gateway:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      AUTH_SERVICE_URL: http://auth_service:8001
+      HOST_SERVICE_URL: http://host_service:8002
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/api_gateway:/app/services/api_gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth_service:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── Auth Service (port 8001) ────────────────────────────────────────────────
+  auth_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.auth_service.main:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "30"
+      BCRYPT_ROUNDS: "10"   # Lower rounds in dev for faster tests
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/auth_service:/app/services/auth_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Host Service (port 8002) ───────────────────────────────────────────────
+  host_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.host_service.main:app --host 0.0.0.0 --port 8002 --reload
+    ports:
+      - "8002:8002"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      JWT_ALGORITHM: HS256
+      VRAM_MISMATCH_TOLERANCE_PCT: "10.0"
+      REBENCHMARK_INTERVAL_HOURS: "48"
+      HEARTBEAT_TIMEOUT_SECONDS: "120"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Worker — Host Service background tasks ─────────────────────────
+  host_service_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.host_service.celery_app.celery_app worker
+        --loglevel=info
+        --queues=celery
+        --concurrency=4
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      REBENCHMARK_INTERVAL_HOURS: "48"
+      HEARTBEAT_TIMEOUT_SECONDS: "120"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Beat — Periodic task scheduler ────────────────────────────────
+  celery_beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.host_service.celery_app.celery_app beat
+        --loglevel=info
+        --scheduler celery.beat:PersistentScheduler
+        --schedule /tmp/celerybeat-schedule
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      REBENCHMARK_INTERVAL_HOURS: "48"
+      HEARTBEAT_TIMEOUT_SECONDS: "120"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/host_service:/app/services/host_service
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── DB Migration runner ────────────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...' &&
+        sleep 3 &&
+        alembic upgrade head &&
+        echo 'All migrations complete.'
+      "
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/auth_service:/app/services/auth_service
+      - ./backend/alembic.ini:/app/alembic.ini
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+  # ── Marketplace Service (port 8003) ───────────────────────────────────────
+  marketplace_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.marketplace_service.main:app --host 0.0.0.0 --port 8003 --reload
+    ports:
+      - "8003:8003"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      JWT_ALGORITHM: HS256
+      HOST_SERVICE_URL: http://host_service:8002
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/marketplace_service:/app/services/marketplace_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Marketplace Celery Worker ──────────────────────────────────────────────
+  marketplace_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.marketplace_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/marketplace_service:/app/services/marketplace_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Wallet & Billing Service (port 8004) ──────────────────────────────────
+  wallet_billing_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.wallet_billing_service.main:app --host 0.0.0.0 --port 8004 --reload
+    ports:
+      - "8004:8004"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      JWT_ALGORITHM: HS256
+      STRIPE_SECRET_KEY: sk_test_REPLACE_WITH_YOUR_STRIPE_KEY
+      STRIPE_WEBHOOK_SECRET: whsec_REPLACE_WITH_YOUR_WEBHOOK_SECRET
+      STRIPE_PUBLISHABLE_KEY: pk_test_REPLACE_WITH_YOUR_PUBLISHABLE_KEY
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/wallet_billing_service:/app/services/wallet_billing_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Wallet Billing Celery Worker ──────────────────────────────────────────
+  wallet_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.wallet_billing_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      STRIPE_SECRET_KEY: sk_test_REPLACE_WITH_YOUR_STRIPE_KEY
+      STRIPE_WEBHOOK_SECRET: whsec_REPLACE_WITH_YOUR_WEBHOOK_SECRET
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/wallet_billing_service:/app/services/wallet_billing_service
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Provisioning Service (port 8005) ─────────────────────────────────────
+  provisioning_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+      HOST_SERVICE_URL: http://host_service:8002
+      # Mock mode — Firecracker requires KVM on Linux; set false in production
+      FIRECRACKER_MOCK: "true"
+      # REQUIRED: Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      SSH_KEY_FERNET_KEY: "REPLACE_WITH_GENERATED_FERNET_KEY_BEFORE_PRODUCTION="
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      WIREGUARD_RELAY_HOST: relay.kynetic.ai
+      WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/provisioning_service:/app/services/provisioning_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  provisioning_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.provisioning_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=4
+        --beat --schedule=/tmp/celerybeat-provisioning-schedule
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+      HOST_SERVICE_URL: http://host_service:8002
+      FIRECRACKER_MOCK: "true"
+      SSH_KEY_FERNET_KEY: "REPLACE_WITH_GENERATED_FERNET_KEY_BEFORE_PRODUCTION="
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      WIREGUARD_RELAY_HOST: relay.kynetic.ai
+      WIREGUARD_RELAY_PUBLIC_KEY: REPLACE_WITH_RELAY_WG_PUBLIC_KEY
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/provisioning_service:/app/services/provisioning_service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Security Service (port 8006) ─────────────────────────────────────────
+  security_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PROVISIONING_SERVICE_URL: http://provisioning_service:8005
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      HOST_SERVICE_URL: http://host_service:8002
+      SCANNER_MOCK: "true"
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      ADMIN_JWT_SECRET_KEY: dev_admin_secret_change_in_production
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/security_service:/app/services/security_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8006/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  security_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.security_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+        --beat --schedule=/tmp/celerybeat-security-schedule
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PROVISIONING_SERVICE_URL: http://provisioning_service:8005
+      WALLET_BILLING_SERVICE_URL: http://wallet_billing_service:8004
+      HOST_SERVICE_URL: http://host_service:8002
+      SCANNER_MOCK: "true"
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      ADMIN_JWT_SECRET_KEY: dev_admin_secret_change_in_production
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/security_service:/app/services/security_service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── AI Router & Copilot Service (port 8009) ─────────────────────────────
+  ai_router_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.ai_router_copilot_service.main:app --host 0.0.0.0 --port 8009 --reload
+    ports:
+      - "8009:8009"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      # Set to your actual API keys locally; these are intentionally blank
+      OPENAI_API_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      MARKETPLACE_SERVICE_URL: http://marketplace_service:8003
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/ai_router_copilot_service:/app/services/ai_router_copilot_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Reputation & Pricing Service (port 8010) ─────────────────────────────
+  reputation_pricing_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.reputation_pricing_service.main:app --host 0.0.0.0 --port 8010 --reload
+    ports:
+      - "8010:8010"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      HOST_SERVICE_URL: http://host_service:8002
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/reputation_pricing_service:/app/services/reputation_pricing_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reputation_pricing_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.reputation_pricing_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      USD_TO_INR_RATE: "84.0"
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/reputation_pricing_service:/app/services/reputation_pricing_service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Notifications Service (port 8011) ────────────────────────────────────
+  notifications_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.notifications_service.main:app --host 0.0.0.0 --port 8011 --reload
+    ports:
+      - "8011:8011"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+      # Keep mock mode enabled in dev — set to false + real key in production
+      SENDGRID_MOCK_MODE: "true"
+      SENDGRID_API_KEY: ""
+      FROM_EMAIL: dev-noreply@kynetic.ai
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/notifications_service:/app/services/notifications_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifications_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      celery -A services.notifications_service.celery_app.celery_app worker
+        --loglevel=info --queues=celery --concurrency=2
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SENDGRID_MOCK_MODE: "true"
+      SENDGRID_API_KEY: ""
+      FROM_EMAIL: dev-noreply@kynetic.ai
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/notifications_service:/app/services/notifications_service
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Monitoring Service (port 8012) ────────────────────────────────────────
+  monitoring_service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn services.monitoring_service.main:app --host 0.0.0.0 --port 8012 --reload
+    ports:
+      - "8012:8012"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: postgresql+asyncpg://kynetic:kynetic@postgres:5432/kynetic
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: dev_secret_change_in_production_12345
+    volumes:
+      - ./backend/libs:/app/libs
+      - ./backend/services/monitoring_service:/app/services/monitoring_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Next.js Frontend (port 3000) ───────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api_gateway
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: kynetic_dev_network
+
+

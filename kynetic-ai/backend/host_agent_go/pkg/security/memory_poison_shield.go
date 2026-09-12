@@ -3,7 +3,6 @@ package security
 import (
 	"context"
 	"sync"
-	"syscall"
 
 	"go.uber.org/zap"
 )
@@ -33,8 +32,8 @@ func (m *MemoryPoisonShield) ProtectBuffer(ctx context.Context, buf []byte) erro
 	}
 
 	// 1. Lock in RAM (prevent swap paging)
-	if err := syscall.Mlock(buf); err != nil {
-		m.logger.Debug("syscall.Mlock not permitted or non-privileged (fallback mode)", zap.Error(err))
+	if err := lockMemory(buf); err != nil {
+		m.logger.Debug("lockMemory not permitted or non-privileged (fallback mode)", zap.Error(err))
 	}
 
 	m.lockedBuffers++

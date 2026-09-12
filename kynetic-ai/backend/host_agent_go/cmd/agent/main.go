@@ -75,7 +75,7 @@ func main() {
 	}
 	log.Info("hardware detected",
 		zap.String("cpu", manifest.CPUModel),
-		zap.Float64("ram_gb", manifest.RAMGB),
+		zap.Float64("ram_gb", manifest.RAMgb),
 		zap.Int("gpu_count", len(manifest.GPUs)),
 	)
 

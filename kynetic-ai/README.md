@@ -95,10 +95,23 @@ Kynetic AI uses a **Hybrid Go/Python** architecture — Go for I/O-bound high-co
 > - **Compute Hosts**: Zero Docker Desktop required. The Go Host Agent runs directly via systemd using Firecracker microVMs and standalone `containerd`.
 > - **Docker / Compose**: Strictly *optional* (only used if you want to spin up all 11 backend microservices locally in containers).
 
-### Prerequisites
-- **Go**: `1.22+` (for CLI, Host Agent, and Gateway Tunnel)
-- **Python**: `3.10+` (for FastAPI Control Plane Microservices)
-- **Datastores**: PostgreSQL 16+ & Redis 7+ (native or via optional Docker)
+### 🪟 Windows Quickstart (PowerShell & Batch)
+
+Kynetic AI provides native Windows support (PowerShell, CMD, Docker Desktop, and WSL2):
+
+```powershell
+# 1. Automated Setup Wizard (Installs venv, npm packages & compiles kynetic.exe)
+.\setup_windows.ps1
+
+# 2. Master Interactive Launcher (Docker, Native Dev Stack, Host Agent, or Tests)
+.\start_windows.ps1
+
+# Or 1-click launch via Windows Command Prompt:
+start_windows.bat
+```
+👉 **Full Guide**: See [Windows Installation & Execution Guide](Docs/Setup/WINDOWS_SETUP_AND_RUN_GUIDE.md) for detailed Docker, Native, and WSL2 GPU compute host instructions.
+
+---
 
 ### Install Production Go CLI (Zero Docker, Zero Python Dependencies)
 ```bash

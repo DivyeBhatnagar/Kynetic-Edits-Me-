@@ -10,11 +10,17 @@ Returns a HardwareManifest dataclass that maps directly to the backend's
 HostRegistrationRequest.hardware schema.
 """
 
+import os
 import platform
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -88,29 +94,42 @@ class HardwareManifest:
 # ---------------------------------------------------------------------------
 def _detect_disk_type() -> tuple[float, str]:
     """Return (total_gb, disk_type) for the primary disk."""
+    total_gb = 0.0
+    disk_path = "C:\\" if platform.system().lower() == "windows" else "/"
     try:
-        usage = psutil.disk_usage("/")
-        total_gb = usage.total / (1024 ** 3)
+        if psutil:
+            usage = psutil.disk_usage(disk_path)
+            total_gb = usage.total / (1024 ** 3)
+        else:
+            total, _, _ = shutil.disk_usage(disk_path)
+            total_gb = total / (1024 ** 3)
     except Exception:
-        total_gb = 0.0
+        try:
+            total, _, _ = shutil.disk_usage(disk_path)
+            total_gb = total / (1024 ** 3)
+        except Exception:
+            total_gb = 0.0
 
     disk_type = "unknown"
     try:
         # On Linux: check /sys/block/sdX/queue/rotational
-        import os
-        for disk in psutil.disk_partitions():
-            if disk.mountpoint == "/" or disk.mountpoint == "C:\\":
-                dev = disk.device.split("/")[-1].rstrip("0123456789")
-                rotational_path = f"/sys/block/{dev}/queue/rotational"
-                if os.path.exists(rotational_path):
-                    with open(rotational_path) as f:
-                        rotational = f.read().strip()
-                    disk_type = "hdd" if rotational == "1" else "ssd"
-                    break
+        if psutil:
+            for disk in psutil.disk_partitions():
+                if disk.mountpoint == "/" or disk.mountpoint == "C:\\":
+                    dev = disk.device.split("/")[-1].rstrip("0123456789")
+                    rotational_path = f"/sys/block/{dev}/queue/rotational"
+                    if os.path.exists(rotational_path):
+                        with open(rotational_path) as f:
+                            rotational = f.read().strip()
+                        disk_type = "hdd" if rotational == "1" else "ssd"
+                        break
     except Exception:
         pass
 
-    # Heuristic: if it's fast and the type is unknown, guess NVMe for SSDs > 500 GB
+    if disk_type == "unknown" and total_gb > 0:
+        disk_type = "ssd"
+
+    # Heuristic: if it's fast and the type is unknown, guess NVMe for SSDs > 200 GB
     if disk_type == "ssd" and total_gb > 200:
         try:
             result = subprocess.run(
@@ -120,7 +139,8 @@ def _detect_disk_type() -> tuple[float, str]:
             if "nvme" in result.stdout.lower():
                 disk_type = "nvme"
         except Exception:
-            pass
+            if platform.system().lower() == "darwin":
+                disk_type = "nvme"
 
     return total_gb, disk_type
 
@@ -251,13 +271,41 @@ def collect_hardware_manifest() -> HardwareManifest:
     os_type = {"windows": "windows", "linux": "linux", "darwin": "macos"}.get(system, "linux")
 
     # CPU
-    cpu_model = platform.processor() or "Unknown CPU"
-    cpu_cores = psutil.cpu_count(logical=False) or 1
-    cpu_threads = psutil.cpu_count(logical=True) or cpu_cores
+    cpu_model = platform.processor() or platform.machine() or "Unknown CPU"
+    if system == "darwin":
+        try:
+            out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()
+            if out:
+                cpu_model = out
+        except Exception:
+            pass
+    elif system == "windows":
+        cpu_model = os.environ.get("PROCESSOR_IDENTIFIER", cpu_model)
+
+    if psutil:
+        cpu_cores = psutil.cpu_count(logical=False) or 1
+        cpu_threads = psutil.cpu_count(logical=True) or cpu_cores
+    else:
+        cpu_threads = os.cpu_count() or 1
+        cpu_cores = max(1, cpu_threads // 2 if cpu_threads > 1 else 1)
 
     # RAM
-    ram = psutil.virtual_memory()
-    ram_gb = ram.total / (1024 ** 3)
+    if psutil:
+        ram = psutil.virtual_memory()
+        ram_gb = ram.total / (1024 ** 3)
+    else:
+        ram_gb = 8.0
+        if system == "darwin":
+            try:
+                mem_bytes = int(subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True).strip())
+                ram_gb = mem_bytes / (1024 ** 3)
+            except Exception:
+                pass
+        elif hasattr(os, "sysconf") and "SC_PAGE_SIZE" in os.sysconf_names and "SC_PHYS_PAGES" in os.sysconf_names:
+            try:
+                ram_gb = (os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")) / (1024 ** 3)
+            except Exception:
+                pass
 
     # Disk
     disk_gb, disk_type = _detect_disk_type()

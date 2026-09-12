@@ -111,7 +111,7 @@ func (m *HardwareManifest) ToAPIDict() map[string]interface{} {
 }
 
 func detectCPU() (model string, cores, threads int) {
-	// Read /proc/cpuinfo on Linux
+	// 1. Read /proc/cpuinfo on Linux
 	if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
 		lines := strings.Split(string(data), "\n")
 		cpuSet := map[int]bool{}
@@ -146,24 +146,55 @@ func detectCPU() (model string, cores, threads int) {
 			cores = threads
 		}
 	}
+
+	// 2. macOS fallback via sysctl
 	if model == "" {
-		// macOS fallback
-		out, err := exec.Command("sysctl", "-n", "machdep.cpu.brand_string").Output()
-		if err == nil {
+		if out, err := exec.Command("sysctl", "-n", "machdep.cpu.brand_string").Output(); err == nil {
 			model = strings.TrimSpace(string(out))
 		}
+		if cores == 0 {
+			if out, err := exec.Command("sysctl", "-n", "hw.physicalcpu").Output(); err == nil {
+				if c, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil {
+					cores = c
+				}
+			}
+		}
+		if threads == 0 {
+			if out, err := exec.Command("sysctl", "-n", "hw.logicalcpu").Output(); err == nil {
+				if t, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil {
+					threads = t
+				}
+			}
+		}
 	}
+
+	// 3. Windows fallback via environment or wmic
 	if model == "" {
-		model = fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+		if procID := os.Getenv("PROCESSOR_IDENTIFIER"); procID != "" {
+			model = strings.TrimSpace(procID)
+		} else if out, err := exec.Command("wmic", "cpu", "get", "name").Output(); err == nil {
+			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+			if len(lines) >= 2 {
+				model = strings.TrimSpace(lines[1])
+			}
+		}
+	}
+
+	// 4. Default fallback
+	if model == "" {
+		model = fmt.Sprintf("%s %s (%s)", runtime.GOOS, runtime.GOARCH, runtime.Version())
 	}
 	if threads == 0 {
 		threads = runtime.NumCPU()
+	}
+	if cores == 0 {
 		cores = threads
 	}
 	return
 }
 
 func detectRAM() float64 {
+	// 1. Linux /proc/meminfo
 	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			if strings.HasPrefix(line, "MemTotal:") {
@@ -176,62 +207,134 @@ func detectRAM() float64 {
 			}
 		}
 	}
-	// macOS fallback
+
+	// 2. macOS sysctl hw.memsize
 	if out, err := exec.Command("sysctl", "-n", "hw.memsize").Output(); err == nil {
 		if bytes, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil {
 			return bytes / (1024 * 1024 * 1024)
 		}
 	}
+
+	// 3. Windows wmic TotalPhysicalMemory
+	if out, err := exec.Command("wmic", "computersystem", "get", "TotalPhysicalMemory").Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(lines) >= 2 {
+			if bytes, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64); err == nil {
+				return bytes / (1024 * 1024 * 1024)
+			}
+		}
+	}
+
 	return 0
 }
 
 func detectDisk() (float64, string) {
-	// Use df to get root filesystem total
-	out, err := exec.Command("df", "-B1", "/").Output()
 	totalGB := 0.0
-	if err == nil {
-		lines := strings.Split(string(out), "\n")
+	diskType := "unknown"
+
+	// 1. Try POSIX df with 1K blocks (works on macOS, Linux, BSD)
+	if out, err := exec.Command("df", "-k", "/").Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 		if len(lines) >= 2 {
 			fields := strings.Fields(lines[1])
 			if len(fields) >= 2 {
-				if b, err := strconv.ParseFloat(fields[1], 64); err == nil {
-					totalGB = b / (1024 * 1024 * 1024)
+				if kb, err := strconv.ParseFloat(fields[1], 64); err == nil {
+					totalGB = kb / (1024 * 1024) // 1K blocks to GB
 				}
 			}
 		}
 	}
 
-	diskType := "unknown"
-	// Check /sys/block for rotational flag
-	entries, _ := os.ReadDir("/sys/block")
-	for _, e := range entries {
-		name := e.Name()
-		if strings.HasPrefix(name, "sd") || strings.HasPrefix(name, "nvme") || strings.HasPrefix(name, "vd") {
-			rotPath := fmt.Sprintf("/sys/block/%s/queue/rotational", name)
-			if data, err := os.ReadFile(rotPath); err == nil {
-				if strings.TrimSpace(string(data)) == "0" {
-					if strings.HasPrefix(name, "nvme") {
-						diskType = "nvme"
-					} else {
-						diskType = "ssd"
-					}
-				} else {
-					diskType = "hdd"
+	// 2. Windows fallback for disk size
+	if totalGB == 0.0 {
+		if out, err := exec.Command("wmic", "logicaldisk", "where", "DeviceID='C:'", "get", "Size").Output(); err == nil {
+			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+			if len(lines) >= 2 {
+				if bytes, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64); err == nil {
+					totalGB = bytes / (1024 * 1024 * 1024)
+					diskType = "ssd"
 				}
 			}
-			break
 		}
 	}
+
+	// 3. Check /sys/block on Linux for rotational flag
+	if entries, err := os.ReadDir("/sys/block"); err == nil {
+		for _, e := range entries {
+			name := e.Name()
+			if strings.HasPrefix(name, "sd") || strings.HasPrefix(name, "nvme") || strings.HasPrefix(name, "vd") {
+				rotPath := fmt.Sprintf("/sys/block/%s/queue/rotational", name)
+				if data, err := os.ReadFile(rotPath); err == nil {
+					if strings.TrimSpace(string(data)) == "0" {
+						if strings.HasPrefix(name, "nvme") {
+							diskType = "nvme"
+						} else {
+							diskType = "ssd"
+						}
+					} else {
+						diskType = "hdd"
+					}
+				}
+				break
+			}
+		}
+	} else if runtime.GOOS == "darwin" && totalGB > 0 {
+		diskType = "nvme" // Apple Silicon internal storage is high-speed NVMe
+	} else if runtime.GOOS == "windows" && diskType == "unknown" && totalGB > 0 {
+		diskType = "ssd"
+	}
+
 	return totalGB, diskType
 }
 
 // detectGPUs uses the NVML cgo binding from pkg/benchmark.
-// Falls back to empty slice on non-NVIDIA or non-Linux hosts.
+// Falls back to nvidia-smi / system queries on Windows/macOS.
 func detectGPUs() []GPUInfo {
-	// GPU detection is delegated to cuda_nvml.go cgo binding
-	// which is compiled only when CGO_ENABLED=1 on Linux with NVML installed.
-	// On macOS dev builds this returns empty.
-	return detectNVMLGPUs()
+	// 1. Linux NVML cgo binding
+	gpus := detectNVMLGPUs()
+	if len(gpus) > 0 {
+		return gpus
+	}
+
+	// 2. Windows / Linux nvidia-smi CLI query fallback
+	if out, err := exec.Command("nvidia-smi", "--query-gpu=gpu_name,memory.total,driver_version", "--format=csv,noheader,nounits").Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		var cliGPUs []GPUInfo
+		for _, line := range lines {
+			parts := strings.Split(line, ",")
+			if len(parts) >= 3 {
+				model := strings.TrimSpace(parts[0])
+				vramMB, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+				driver := strings.TrimSpace(parts[2])
+				cliGPUs = append(cliGPUs, GPUInfo{
+					Model:         model,
+					VRAMgb:        vramMB / 1024.0,
+					DriverVersion: driver,
+				})
+			}
+		}
+		if len(cliGPUs) > 0 {
+			return cliGPUs
+		}
+	}
+
+	// 3. macOS Apple Silicon GPU detection
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		if out, err := exec.Command("sysctl", "-n", "machdep.cpu.brand_string").Output(); err == nil {
+			chip := strings.TrimSpace(string(out))
+			ramGB := detectRAM()
+			return []GPUInfo{
+				{
+					Model:         fmt.Sprintf("Apple %s (Metal/MPS Unified Memory)", chip),
+					VRAMgb:        ramGB, // Apple Silicon unified memory
+					DriverVersion: "Metal 3.0",
+					CUDAVersion:   "N/A (MPS)",
+				},
+			}
+		}
+	}
+
+	return nil
 }
 
 func round2(v float64) float64 {
